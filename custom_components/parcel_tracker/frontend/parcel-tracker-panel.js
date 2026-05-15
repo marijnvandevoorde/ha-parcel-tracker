@@ -1,20 +1,133 @@
 const CARRIERS = {
   auto: 'Auto-detect',
   bpost: 'bPost',
-  dhl: 'DHL',
+  dhl: 'DHL (Internationaal)',
+  dhl_de: 'DHL Germany',
+  dpd: 'DPD',
   tnt: 'TNT / FedEx',
   ups: 'UPS',
   postnl: 'PostNL',
 };
 
-const STATUS = {
-  delivered:        { label: 'Bezorgd',            color: '#4CAF50' },
-  in_transit:       { label: 'Onderweg',            color: '#2196F3' },
-  out_for_delivery: { label: 'Wordt vandaag bezorgd', color: '#FF9800' },
-  pending:          { label: 'Aangemeld',           color: '#9E9E9E' },
-  exception:        { label: 'Probleem',            color: '#F44336' },
-  unknown:          { label: 'Onbekend',            color: '#9E9E9E' },
-  empty:            { label: '',                    color: 'transparent' },
+const STATUS_COLORS = {
+  delivered:        '#4CAF50',
+  in_transit:       '#2196F3',
+  out_for_delivery: '#FF9800',
+  pending:          '#9E9E9E',
+  exception:        '#F44336',
+  unknown:          '#9E9E9E',
+  empty:            'transparent',
+};
+
+const TRANSLATIONS = {
+  nl: {
+    loading:          'Laden…',
+    refresh:          '↻ Ververs',
+    active_parcels:   'Actieve pakketten',
+    no_parcels:       'Nog geen pakketten toegevoegd.',
+    no_parcels_hint:  'Klik hieronder om je eerste pakket in te voeren.',
+    max_reached:      'Maximum van 10 pakketten bereikt.',
+    add_parcel:       'Pakket toevoegen',
+    edit_parcel:      'Pakket bewerken',
+    new_parcel:       'Nieuw pakket toevoegen',
+    name_label:       'Naam (optioneel)',
+    name_placeholder: 'bijv. Bestelling bol.com',
+    tracking_label:   'Trackingnummer',
+    tracking_placeholder: 'bijv. JD014600004860246190',
+    carrier_label:    'Bezorgdienst',
+    save:             'Opslaan',
+    saving:           'Opslaan…',
+    cancel:           'Annuleren',
+    edit:             'Bewerken',
+    delete:           'Verwijderen',
+    track_link:       'Volg pakket →',
+    confirm_delete:   'Pakket verwijderen?',
+    saved:            'Pakket opgeslagen!',
+    deleted:          'Pakket verwijderd.',
+    save_error:       'Opslaan mislukt. Probeer opnieuw.',
+    load_error:       'Kon pakketdata niet laden. Controleer of de integratie actief is.',
+    status: {
+      delivered:        'Bezorgd',
+      in_transit:       'Onderweg',
+      out_for_delivery: 'Wordt vandaag bezorgd',
+      pending:          'Aangemeld',
+      exception:        'Probleem',
+      unknown:          'Onbekend',
+      empty:            '',
+    },
+  },
+  fr: {
+    loading:          'Chargement…',
+    refresh:          '↻ Actualiser',
+    active_parcels:   'Colis actifs',
+    no_parcels:       'Aucun colis ajouté.',
+    no_parcels_hint:  'Cliquez ci-dessous pour ajouter votre premier colis.',
+    max_reached:      'Maximum de 10 colis atteint.',
+    add_parcel:       'Ajouter un colis',
+    edit_parcel:      'Modifier le colis',
+    new_parcel:       'Ajouter un nouveau colis',
+    name_label:       'Nom (optionnel)',
+    name_placeholder: 'ex. Commande Amazon',
+    tracking_label:   'Numéro de suivi',
+    tracking_placeholder: 'ex. JD014600004860246190',
+    carrier_label:    'Transporteur',
+    save:             'Enregistrer',
+    saving:           'Enregistrement…',
+    cancel:           'Annuler',
+    edit:             'Modifier',
+    delete:           'Supprimer',
+    track_link:       'Suivre le colis →',
+    confirm_delete:   'Supprimer ce colis ?',
+    saved:            'Colis enregistré !',
+    deleted:          'Colis supprimé.',
+    save_error:       'Échec de l\'enregistrement. Réessayez.',
+    load_error:       'Impossible de charger les données. Vérifiez que l\'intégration est active.',
+    status: {
+      delivered:        'Livré',
+      in_transit:       'En transit',
+      out_for_delivery: 'En cours de livraison',
+      pending:          'Enregistré',
+      exception:        'Problème',
+      unknown:          'Inconnu',
+      empty:            '',
+    },
+  },
+  en: {
+    loading:          'Loading…',
+    refresh:          '↻ Refresh',
+    active_parcels:   'Active parcels',
+    no_parcels:       'No parcels added yet.',
+    no_parcels_hint:  'Click below to add your first parcel.',
+    max_reached:      'Maximum of 10 parcels reached.',
+    add_parcel:       'Add parcel',
+    edit_parcel:      'Edit parcel',
+    new_parcel:       'Add new parcel',
+    name_label:       'Name (optional)',
+    name_placeholder: 'e.g. Amazon order',
+    tracking_label:   'Tracking number',
+    tracking_placeholder: 'e.g. JD014600004860246190',
+    carrier_label:    'Carrier',
+    save:             'Save',
+    saving:           'Saving…',
+    cancel:           'Cancel',
+    edit:             'Edit',
+    delete:           'Delete',
+    track_link:       'Track parcel →',
+    confirm_delete:   'Delete this parcel?',
+    saved:            'Parcel saved!',
+    deleted:          'Parcel deleted.',
+    save_error:       'Save failed. Please try again.',
+    load_error:       'Could not load parcel data. Check that the integration is active.',
+    status: {
+      delivered:        'Delivered',
+      in_transit:       'In transit',
+      out_for_delivery: 'Out for delivery',
+      pending:          'Registered',
+      exception:        'Exception',
+      unknown:          'Unknown',
+      empty:            '',
+    },
+  },
 };
 
 const CSS = `
@@ -123,6 +236,11 @@ class ParcelTrackerPanel extends HTMLElement {
     if (isFirst) this._loadData();
   }
 
+  get _t() {
+    const lang = (this._hass?.language || 'en').split('-')[0];
+    return TRANSLATIONS[lang] || TRANSLATIONS.en;
+  }
+
   async _loadData() {
     this._loading = true;
     this._render();
@@ -133,7 +251,7 @@ class ParcelTrackerPanel extends HTMLElement {
         this._parcels = result[0].parcels;
       }
     } catch (e) {
-      this._showToast('error', 'Kon pakketdata niet laden. Controleer of de integratie actief is.');
+      this._showToast('error', this._t.load_error);
     }
     this._loading = false;
     this._render();
@@ -152,10 +270,10 @@ class ParcelTrackerPanel extends HTMLElement {
         friendly_name: name.trim() || `Parcel ${slot}`,
       });
       this._editing = null;
-      this._showToast('success', tracking.trim() ? 'Pakket opgeslagen!' : 'Pakket verwijderd.');
+      this._showToast('success', tracking.trim() ? this._t.saved : this._t.deleted);
       await this._loadData();
     } catch (e) {
-      this._showToast('error', 'Opslaan mislukt. Probeer opnieuw.');
+      this._showToast('error', this._t.save_error);
     }
     this._saving = false;
     this._render();
@@ -174,8 +292,9 @@ class ParcelTrackerPanel extends HTMLElement {
   }
 
   _renderBody() {
+    const t = this._t;
     if (this._loading) {
-      return `<h1>📦 Parcel Tracker</h1><div class="loading">Laden…</div>`;
+      return `<h1>📦 Parcel Tracker</h1><div class="loading">${t.loading}</div>`;
     }
     const active = this._parcels.filter(p => p.tracking);
     const nextEmpty = this._parcels.find(p => !p.tracking);
@@ -183,55 +302,59 @@ class ParcelTrackerPanel extends HTMLElement {
     return `
       <div class="toolbar">
         <h1>📦 Parcel Tracker</h1>
-        <button class="btn-secondary btn-sm" id="btn-refresh">↻ Ververs</button>
+        <button class="btn-secondary btn-sm" id="btn-refresh">${t.refresh}</button>
       </div>
       ${this._toast ? `<div class="toast ${this._toast.type}">${this._esc(this._toast.text)}</div>` : ''}
       ${active.length === 0 && this._editing === null ? this._renderEmptyState() : ''}
-      ${active.length > 0 ? '<div class="section-label">Actieve pakketten</div>' : ''}
+      ${active.length > 0 ? `<div class="section-label">${t.active_parcels}</div>` : ''}
       ${active.map(p => this._editing === p.slot ? this._renderForm(p) : this._renderParcel(p)).join('')}
       ${nextEmpty
         ? (this._editing === nextEmpty.slot
             ? this._renderForm(nextEmpty)
             : this._renderAddButton(nextEmpty))
-        : '<div style="font-size:0.8rem;color:var(--secondary-text-color);text-align:center">Maximum van 10 pakketten bereikt.</div>'
+        : `<div style="font-size:0.8rem;color:var(--secondary-text-color);text-align:center">${t.max_reached}</div>`
       }
     `;
   }
 
   _renderEmptyState() {
+    const t = this._t;
     return `
       <div class="empty-state">
         <div class="big">📦</div>
-        <div style="margin-top:8px">Nog geen pakketten toegevoegd.</div>
-        <div style="font-size:0.8rem;margin-top:4px">Klik hieronder om je eerste pakket in te voeren.</div>
+        <div style="margin-top:8px">${t.no_parcels}</div>
+        <div style="font-size:0.8rem;margin-top:4px">${t.no_parcels_hint}</div>
       </div>
     `;
   }
 
   _renderParcel(p) {
-    const st = STATUS[p.status] || STATUS.unknown;
+    const t = this._t;
+    const statusLabel = t.status[p.status] || '';
+    const statusColor = STATUS_COLORS[p.status] || STATUS_COLORS.unknown;
     const carrierLabel = CARRIERS[p.carrier] || p.carrier;
     return `
       <div class="card" data-slot="${p.slot}">
         <div class="slot-header">
           <span class="slot-name">${this._esc(p.friendly_name)}</span>
-          ${st.label ? `<span class="badge" style="background:${st.color}">${st.label}</span>` : ''}
+          ${statusLabel ? `<span class="badge" style="background:${statusColor}">${statusLabel}</span>` : ''}
         </div>
         <div class="tracking-num">${this._esc(p.tracking)}</div>
         <div class="carrier-label">
           ${this._esc(carrierLabel)}
-          ${p.tracking_url ? ` &middot; <a href="${this._esc(p.tracking_url)}" target="_blank">Volg pakket →</a>` : ''}
+          ${p.tracking_url ? ` &middot; <a href="${this._esc(p.tracking_url)}" target="_blank">${t.track_link}</a>` : ''}
         </div>
         ${p.status_detail ? `<div class="detail">${this._esc(p.status_detail)}</div>` : ''}
         <div class="actions">
-          <button class="btn-secondary btn-sm" data-action="edit" data-slot="${p.slot}">Bewerken</button>
-          <button class="btn-danger btn-sm" data-action="delete" data-slot="${p.slot}">Verwijderen</button>
+          <button class="btn-secondary btn-sm" data-action="edit" data-slot="${p.slot}">${t.edit}</button>
+          <button class="btn-danger btn-sm" data-action="delete" data-slot="${p.slot}">${t.delete}</button>
         </div>
       </div>
     `;
   }
 
   _renderForm(p) {
+    const t = this._t;
     const carrierOptions = Object.entries(CARRIERS)
       .map(([k, v]) => `<option value="${k}"${p.carrier === k ? ' selected' : ''}>${v}</option>`)
       .join('');
@@ -239,35 +362,37 @@ class ParcelTrackerPanel extends HTMLElement {
     return `
       <div class="card editing">
         <div style="font-weight:500;color:var(--primary-text-color);margin-bottom:4px">
-          ${isNew ? 'Nieuw pakket toevoegen' : 'Pakket bewerken'}
+          ${isNew ? t.new_parcel : t.edit_parcel}
         </div>
-        <label>Naam (optioneel)</label>
-        <input id="edit-name" type="text" value="${this._esc(p.friendly_name)}" placeholder="bijv. Bestelling bol.com">
-        <label>Trackingnummer</label>
-        <input id="edit-tracking" type="text" value="${this._esc(p.tracking)}" placeholder="bijv. JD014600004860246190">
-        <label>Bezorgdienst</label>
+        <label>${t.name_label}</label>
+        <input id="edit-name" type="text" value="${this._esc(p.friendly_name)}" placeholder="${t.name_placeholder}">
+        <label>${t.tracking_label}</label>
+        <input id="edit-tracking" type="text" value="${this._esc(p.tracking)}" placeholder="${t.tracking_placeholder}">
+        <label>${t.carrier_label}</label>
         <select id="edit-carrier">${carrierOptions}</select>
         <div class="actions">
           <button class="btn-primary" data-action="save" data-slot="${p.slot}" ${this._saving ? 'disabled' : ''}>
-            ${this._saving ? 'Opslaan…' : 'Opslaan'}
+            ${this._saving ? t.saving : t.save}
           </button>
-          <button class="btn-secondary" data-action="cancel">Annuleren</button>
+          <button class="btn-secondary" data-action="cancel">${t.cancel}</button>
         </div>
       </div>
     `;
   }
 
   _renderAddButton(p) {
+    const t = this._t;
     return `
       <div class="add-card" data-action="add" data-slot="${p.slot}">
         <div class="add-icon">+</div>
-        <div class="add-label">Pakket toevoegen</div>
+        <div class="add-label">${t.add_parcel}</div>
       </div>
     `;
   }
 
   _bindEvents() {
     const root = this.shadowRoot;
+    const t = this._t;
 
     root.querySelector('#btn-refresh')?.addEventListener('click', () => this._loadData());
 
@@ -283,7 +408,7 @@ class ParcelTrackerPanel extends HTMLElement {
           this._editing = null;
           this._render();
         } else if (action === 'delete') {
-          if (confirm('Pakket verwijderen?')) {
+          if (confirm(t.confirm_delete)) {
             this._save(slot, '', 'auto', `Parcel ${slot}`);
           }
         } else if (action === 'save') {
