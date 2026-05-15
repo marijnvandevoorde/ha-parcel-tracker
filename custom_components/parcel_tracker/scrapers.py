@@ -36,6 +36,9 @@ def detect_carrier(tracking_number: str) -> str:
     # UPS: 1Z + 16 chars
     if re.match(r"^1Z[A-Z0-9]{16}$", tn):
         return "ups"
+    # DPD: 14-digit codes starting with 0, or %05B prefix
+    if re.match(r"^(0\d{13}|%05B\d+)$", tn):
+        return "dpd"
     # TNT/FedEx: numeric 9, 12 or 15 digits, or GE..
     if re.match(r"^(\d{9}|\d{12}|\d{15}|[A-Z]{2}\d{9})$", tn):
         return "tnt"
@@ -323,10 +326,72 @@ def scrape_tnt(tracking_number: str) -> dict:
     return result
 
 
+def _normalize_dpd(raw: str) -> str:
+    raw = raw.lower()
+    if any(w in raw for w in ["delivered", "afgeleverd", "zugestellt", "bezorgd"]):
+        return "delivered"
+    if any(w in raw for w in ["out for delivery", "in zustellung", "bezorger", "onderweg naar u"]):
+        return "out_for_delivery"
+    if any(w in raw for w in ["transit", "depot", "hub", "unterwegs", "onderweg", "sorted"]):
+        return "in_transit"
+    if any(w in raw for w in ["pickup", "collected", "abgeholt", "aangemeld", "label"]):
+        return "pending"
+    if any(w in raw for w in ["exception", "failed", "nicht", "problem", "retour"]):
+        return "exception"
+    return "unknown"
+
+
+def scrape_dpd(tracking_number: str) -> dict:
+    """Scrape DPD tracking via their REST API."""
+    result = {
+        "status": "unknown",
+        "status_detail": "",
+        "carrier": "dpd",
+        "tracking_number": tracking_number,
+        "tracking_url": f"https://tracking.dpd.de/parcelstatus?query={tracking_number}&language=nl",
+    }
+    try:
+        api_url = f"https://tracking.dpd.de/rest/plc/{tracking_number}"
+        resp = requests.get(api_url, headers=HEADERS, timeout=TIMEOUT)
+        if resp.status_code == 200:
+            data = resp.json()
+            depot_data = data.get("depot", {})
+            parcel_lifecycle = data.get("parcellifecycleResponse", {})
+            status_info = parcel_lifecycle.get("parcelLifeCycleData", {})
+            scan_info = status_info.get("statusInfo", [])
+            if scan_info:
+                latest = scan_info[0]
+                label = latest.get("label", {}).get("content", [""])[0] if latest.get("label", {}).get("content") else ""
+                result["status_detail"] = label
+                result["status"] = _normalize_dpd(label)
+            else:
+                result["status"] = "pending"
+                result["status_detail"] = "Aangemeld bij DPD"
+        else:
+            result["status_detail"] = f"HTTP {resp.status_code}"
+    except Exception as exc:
+        _LOGGER.error("DPD scrape error: %s", exc)
+        result["status"] = "unknown"
+        result["status_detail"] = str(exc)
+    return result
+
+
+def scrape_dhl_de(tracking_number: str) -> dict:
+    """Scrape DHL Germany — uses same DHL API but links to dhl.de."""
+    result = scrape_dhl(tracking_number)
+    result["carrier"] = "dhl_de"
+    result["tracking_url"] = (
+        f"https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={tracking_number}"
+    )
+    return result
+
+
 SCRAPER_MAP = {
     "bpost": scrape_bpost,
     "postnl": scrape_postnl,
     "dhl": scrape_dhl,
+    "dhl_de": scrape_dhl_de,
+    "dpd": scrape_dpd,
     "ups": scrape_ups,
     "tnt": scrape_tnt,
 }
