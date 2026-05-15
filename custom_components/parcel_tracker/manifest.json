@@ -3,6 +3,7 @@
   "name": "Parcel Tracker",
   "codeowners": ["@wwoutt"],
   "config_flow": true,
+  "after_dependencies": ["http"],
   "dependencies": [],
   "documentation": "https://github.com/wwoutt/ha-parcel-tracker",
   "iot_class": "cloud_polling",
