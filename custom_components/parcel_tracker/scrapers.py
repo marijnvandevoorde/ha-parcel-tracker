@@ -59,15 +59,33 @@ def _get(url: str) -> BeautifulSoup | None:
 
 def _normalize_bpost(raw: str) -> str:
     raw = raw.lower()
-    if any(w in raw for w in ["afgeleverd", "delivered", "overhandigd"]):
+    if any(w in raw for w in [
+        "afgeleverd", "delivered", "overhandigd",
+        "livré", "livre", "remis", "zugestellt",
+    ]):
         return "delivered"
-    if any(w in raw for w in ["onderweg naar", "out for delivery", "bij de bode", "bezorgd wordt"]):
+    if any(w in raw for w in [
+        "onderweg naar", "out for delivery", "bij de bode", "bezorgd wordt",
+        "en cours de livraison", "en livraison", "in zustellung",
+    ]):
         return "out_for_delivery"
-    if any(w in raw for w in ["in transit", "onderweg", "gesorteerd", "verwerkt", "aangeboden"]):
+    if any(w in raw for w in [
+        "in transit", "onderweg", "gesorteerd", "verwerkt", "aangeboden",
+        "en transit", "en cours", "acheminé", "achemine",
+        "unterwegs", "sortiert", "weitergeleitet",
+    ]):
         return "in_transit"
-    if any(w in raw for w in ["aangemeld", "registered", "ontvangen", "order"]):
+    if any(w in raw for w in [
+        "aangemeld", "registered", "ontvangen", "order",
+        "enregistré", "enregistre", "pris en charge",
+        "angemeldet", "abgeholt",
+    ]):
         return "pending"
-    if any(w in raw for w in ["probleem", "exception", "fout", "onbestelbaar"]):
+    if any(w in raw for w in [
+        "probleem", "exception", "fout", "onbestelbaar",
+        "incident", "échec", "echeç", "retourné", "retourne",
+        "fehler", "nicht zustellbar", "rückläufer",
+    ]):
         return "exception"
     return "unknown"
 
@@ -113,15 +131,34 @@ def scrape_bpost(tracking_number: str) -> dict:
 
 def _normalize_postnl(raw: str) -> str:
     raw = raw.lower()
-    if any(w in raw for w in ["afgeleverd", "delivered", "bezorgd"]):
+    if any(w in raw for w in [
+        "afgeleverd", "delivered", "bezorgd",
+        "livré", "livre", "remis", "zugestellt",
+    ]):
         return "delivered"
-    if any(w in raw for w in ["onderweg naar u", "bezorger", "out for delivery"]):
+    if any(w in raw for w in [
+        "onderweg naar u", "bezorger", "out for delivery",
+        "en cours de livraison", "en livraison", "livreur",
+        "in zustellung", "mit dem zusteller",
+    ]):
         return "out_for_delivery"
-    if any(w in raw for w in ["onderweg", "gesorteerd", "in transit", "verwerkt"]):
+    if any(w in raw for w in [
+        "onderweg", "gesorteerd", "in transit", "verwerkt",
+        "en transit", "en cours", "acheminé", "achemine",
+        "unterwegs", "sortiert",
+    ]):
         return "in_transit"
-    if any(w in raw for w in ["verwacht", "aangemeld", "registered"]):
+    if any(w in raw for w in [
+        "verwacht", "aangemeld", "registered",
+        "enregistré", "enregistre", "attendu",
+        "angemeldet", "erwartet",
+    ]):
         return "pending"
-    if any(w in raw for w in ["niet", "probleem", "exception"]):
+    if any(w in raw for w in [
+        "niet", "probleem", "exception",
+        "incident", "échec", "echeç", "retourné", "retourne",
+        "nicht", "fehler", "rückläufer",
+    ]):
         return "exception"
     return "unknown"
 
@@ -162,17 +199,45 @@ def scrape_postnl(tracking_number: str) -> dict:
     return result
 
 
+# DHL API returns these status codes directly — more reliable than text normalization
+_DHL_STATUS_CODES = {
+    "delivered": "delivered",
+    "in-transit": "in_transit",
+    "transit": "in_transit",
+    "out-for-delivery": "out_for_delivery",
+    "delivery-failure": "exception",
+    "pre-transit": "pending",
+    "return": "exception",
+}
+
+
 def _normalize_dhl(raw: str) -> str:
     raw = raw.lower()
-    if any(w in raw for w in ["delivered", "afgeleverd", "delivered to"]):
+    if any(w in raw for w in [
+        "delivered", "afgeleverd", "delivered to", "zugestellt",
+        "livré", "livre", "remis",
+    ]):
         return "delivered"
-    if any(w in raw for w in ["out for delivery", "with delivery courier", "bezorger"]):
+    if any(w in raw for w in [
+        "out for delivery", "with delivery courier", "bezorger", "in zustellung",
+        "en cours de livraison", "en livraison", "livreur",
+    ]):
         return "out_for_delivery"
-    if any(w in raw for w in ["transit", "departed", "arrived", "processed", "clearance"]):
+    if any(w in raw for w in [
+        "transit", "departed", "arrived", "processed", "clearance",
+        "doorgestuurd", "forwarded", "unterwegs", "weitergeleitet",
+        "en transit", "en cours", "acheminé", "achemine", "transfert",
+    ]):
         return "in_transit"
-    if any(w in raw for w in ["picked up", "shipment picked", "registered"]):
+    if any(w in raw for w in [
+        "picked up", "shipment picked", "registered", "aangemeld", "abgeholt",
+        "enregistré", "enregistre", "pris en charge",
+    ]):
         return "pending"
-    if any(w in raw for w in ["exception", "delay", "held", "failed"]):
+    if any(w in raw for w in [
+        "exception", "delay", "held", "failed", "mislukt", "retour",
+        "incident", "échec", "echeç", "retourné", "retourne",
+    ]):
         return "exception"
     return "unknown"
 
@@ -203,8 +268,13 @@ def scrape_dhl(tracking_number: str) -> dict:
                 events = s.get("events", [])
                 status_obj = s.get("status", {})
                 description = status_obj.get("description", "")
+                status_code = status_obj.get("status", "").lower().replace("_", "-")
                 result["status_detail"] = description
-                result["status"] = _normalize_dhl(description)
+                # Prefer the API's own status code over text normalization
+                result["status"] = (
+                    _DHL_STATUS_CODES.get(status_code)
+                    or _normalize_dhl(description)
+                )
                 if events:
                     result["status_detail"] = events[0].get("description", description)
         else:
@@ -227,15 +297,34 @@ def scrape_dhl(tracking_number: str) -> dict:
 
 def _normalize_ups(raw: str) -> str:
     raw = raw.lower()
-    if any(w in raw for w in ["delivered", "afgeleverd"]):
+    if any(w in raw for w in [
+        "delivered", "afgeleverd",
+        "livré", "livre", "remis", "zugestellt",
+    ]):
         return "delivered"
-    if any(w in raw for w in ["out for delivery", "on the way"]):
+    if any(w in raw for w in [
+        "out for delivery", "on the way",
+        "en cours de livraison", "en livraison",
+        "in zustellung", "zur zustellung",
+    ]):
         return "out_for_delivery"
-    if any(w in raw for w in ["in transit", "departed", "arrived", "processed", "export"]):
+    if any(w in raw for w in [
+        "in transit", "departed", "arrived", "processed", "export",
+        "en transit", "en cours", "acheminé", "achemine",
+        "unterwegs", "sortiert", "weitergeleitet",
+    ]):
         return "in_transit"
-    if any(w in raw for w in ["label created", "order processed", "pickup"]):
+    if any(w in raw for w in [
+        "label created", "order processed", "pickup",
+        "étiquette créée", "etiquette cree", "prise en charge",
+        "label erstellt", "abgeholt", "angemeldet",
+    ]):
         return "pending"
-    if any(w in raw for w in ["exception", "delay", "held"]):
+    if any(w in raw for w in [
+        "exception", "delay", "held",
+        "incident", "retard", "retourné", "retourne",
+        "fehler", "verzögerung", "nicht zustellbar",
+    ]):
         return "exception"
     return "unknown"
 
@@ -278,15 +367,34 @@ def scrape_ups(tracking_number: str) -> dict:
 
 def _normalize_tnt(raw: str) -> str:
     raw = raw.lower()
-    if any(w in raw for w in ["delivered", "afgeleverd"]):
+    if any(w in raw for w in [
+        "delivered", "afgeleverd",
+        "livré", "livre", "remis", "zugestellt",
+    ]):
         return "delivered"
-    if any(w in raw for w in ["on fedex vehicle", "out for delivery", "on vehicle"]):
+    if any(w in raw for w in [
+        "on fedex vehicle", "out for delivery", "on vehicle",
+        "en cours de livraison", "en livraison",
+        "in zustellung", "mit dem zusteller",
+    ]):
         return "out_for_delivery"
-    if any(w in raw for w in ["in transit", "departed", "arrived", "at fedex", "clearance"]):
+    if any(w in raw for w in [
+        "in transit", "departed", "arrived", "at fedex", "clearance",
+        "en transit", "en cours", "acheminé", "achemine",
+        "unterwegs", "sortiert", "weitergeleitet",
+    ]):
         return "in_transit"
-    if any(w in raw for w in ["picked up", "shipment information", "label"]):
+    if any(w in raw for w in [
+        "picked up", "shipment information", "label",
+        "pris en charge", "enregistré", "enregistre",
+        "abgeholt", "angemeldet", "label erstellt",
+    ]):
         return "pending"
-    if any(w in raw for w in ["exception", "delay", "held"]):
+    if any(w in raw for w in [
+        "exception", "delay", "held",
+        "incident", "retard", "retourné", "retourne",
+        "fehler", "verzögerung", "nicht zustellbar",
+    ]):
         return "exception"
     return "unknown"
 
@@ -328,15 +436,33 @@ def scrape_tnt(tracking_number: str) -> dict:
 
 def _normalize_dpd(raw: str) -> str:
     raw = raw.lower()
-    if any(w in raw for w in ["delivered", "afgeleverd", "zugestellt", "bezorgd"]):
+    if any(w in raw for w in [
+        "delivered", "afgeleverd", "zugestellt", "bezorgd",
+        "livré", "livre", "remis",
+    ]):
         return "delivered"
-    if any(w in raw for w in ["out for delivery", "in zustellung", "bezorger", "onderweg naar u"]):
+    if any(w in raw for w in [
+        "out for delivery", "in zustellung", "bezorger", "onderweg naar u",
+        "en cours de livraison", "en livraison", "livreur",
+    ]):
         return "out_for_delivery"
-    if any(w in raw for w in ["transit", "depot", "hub", "unterwegs", "onderweg", "sorted"]):
+    if any(w in raw for w in [
+        "transit", "depot", "hub", "unterwegs", "onderweg", "sorted",
+        "en transit", "en cours", "acheminé", "achemine", "transfert",
+        "sortiert", "weitergeleitet",
+    ]):
         return "in_transit"
-    if any(w in raw for w in ["pickup", "collected", "abgeholt", "aangemeld", "label"]):
+    if any(w in raw for w in [
+        "pickup", "collected", "abgeholt", "aangemeld", "label",
+        "pris en charge", "enregistré", "enregistre",
+        "angemeldet", "label erstellt",
+    ]):
         return "pending"
-    if any(w in raw for w in ["exception", "failed", "nicht", "problem", "retour"]):
+    if any(w in raw for w in [
+        "exception", "failed", "nicht", "problem", "retour",
+        "incident", "échec", "echeç", "retourné", "retourne",
+        "fehler", "nicht zustellbar", "rückläufer",
+    ]):
         return "exception"
     return "unknown"
 
