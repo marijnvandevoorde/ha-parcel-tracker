@@ -29,6 +29,8 @@ class ParcelSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def _data(self) -> dict:
+        if not self.coordinator.data:
+            return {}
         return self.coordinator.data.get(f"parcel_{self._slot}", {})
 
     @property
