@@ -9,6 +9,7 @@ from .const import DOMAIN, MAX_PARCELS, CARRIERS
 def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_parcels)
     websocket_api.async_register_command(hass, ws_set_parcel)
+    websocket_api.async_register_command(hass, ws_refresh)
 
 
 @callback
@@ -34,8 +35,25 @@ def ws_list_parcels(hass: HomeAssistant, connection, msg: dict) -> None:
                 "status_detail": status_data.get("status_detail", ""),
                 "tracking_url": status_data.get("tracking_url", ""),
             })
-        result.append({"entry_id": entry_id, "parcels": parcels})
+        last_checked = coordinator.last_checked.isoformat() if coordinator and coordinator.last_checked else None
+        result.append({"entry_id": entry_id, "parcels": parcels, "last_checked": last_checked})
     connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "parcel_tracker/refresh",
+    vol.Required("entry_id"): str,
+})
+@websocket_api.async_response
+async def ws_refresh(hass: HomeAssistant, connection, msg: dict) -> None:
+    entry_id = msg["entry_id"]
+    if entry_id not in hass.data.get(DOMAIN, {}):
+        connection.send_error(msg["id"], "not_found", "Entry not found")
+        return
+    coordinator = hass.data[DOMAIN][entry_id].get("coordinator")
+    if coordinator:
+        await coordinator.async_request_refresh()
+    connection.send_result(msg["id"], {"success": True})
 
 
 @websocket_api.websocket_command({

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -21,6 +21,7 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=DEFAULT_SCAN_INTERVAL),
         )
         self.entry = entry
+        self.last_checked: datetime | None = None
 
     async def _async_update_data(self) -> dict:
         slots = self.hass.data[DOMAIN][self.entry.entry_id]["slots"]
@@ -51,4 +52,5 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
             info["friendly_name"] = friendly
             info["slot"] = i
             results[key] = info
+        self.last_checked = datetime.now(timezone.utc)
         return results

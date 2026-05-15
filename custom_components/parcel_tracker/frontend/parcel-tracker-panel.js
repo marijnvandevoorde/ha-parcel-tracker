@@ -21,8 +21,11 @@ const STATUS_COLORS = {
 
 const TRANSLATIONS = {
   nl: {
+    last_checked:     'Laatste controle',
+    never_checked:    'Nog niet gecontroleerd',
     loading:          'Laden…',
     refresh:          '↻ Ververs',
+    refreshing:       'Bezig…',
     active_parcels:   'Actieve pakketten',
     no_parcels:       'Nog geen pakketten toegevoegd.',
     no_parcels_hint:  'Klik hieronder om je eerste pakket in te voeren.',
@@ -57,8 +60,11 @@ const TRANSLATIONS = {
     },
   },
   fr: {
+    last_checked:     'Dernière vérification',
+    never_checked:    'Pas encore vérifié',
     loading:          'Chargement…',
     refresh:          '↻ Actualiser',
+    refreshing:       'En cours…',
     active_parcels:   'Colis actifs',
     no_parcels:       'Aucun colis ajouté.',
     no_parcels_hint:  'Cliquez ci-dessous pour ajouter votre premier colis.',
@@ -93,8 +99,11 @@ const TRANSLATIONS = {
     },
   },
   en: {
+    last_checked:     'Last checked',
+    never_checked:    'Not yet checked',
     loading:          'Loading…',
     refresh:          '↻ Refresh',
+    refreshing:       'Refreshing…',
     active_parcels:   'Active parcels',
     no_parcels:       'No parcels added yet.',
     no_parcels_hint:  'Click below to add your first parcel.',
@@ -220,8 +229,10 @@ class ParcelTrackerPanel extends HTMLElement {
     this._hass = null;
     this._parcels = [];
     this._entryId = null;
+    this._lastChecked = null;
     this._editing = null;
     this._loading = true;
+    this._refreshing = false;
     this._saving = false;
     this._toast = null;
   }
@@ -241,6 +252,20 @@ class ParcelTrackerPanel extends HTMLElement {
     return TRANSLATIONS[lang] || TRANSLATIONS.en;
   }
 
+  async _refresh() {
+    if (this._refreshing || !this._entryId) return;
+    this._refreshing = true;
+    this._render();
+    try {
+      await this._hass.callWS({ type: 'parcel_tracker/refresh', entry_id: this._entryId });
+    } catch (e) {
+      // ignore, _loadData will show any error
+    }
+    await this._loadData();
+    this._refreshing = false;
+    this._render();
+  }
+
   async _loadData() {
     this._loading = true;
     this._render();
@@ -249,6 +274,7 @@ class ParcelTrackerPanel extends HTMLElement {
       if (result && result.length > 0) {
         this._entryId = result[0].entry_id;
         this._parcels = result[0].parcels;
+        this._lastChecked = result[0].last_checked ? new Date(result[0].last_checked) : null;
       }
     } catch (e) {
       this._showToast('error', this._t.load_error);
@@ -302,7 +328,14 @@ class ParcelTrackerPanel extends HTMLElement {
     return `
       <div class="toolbar">
         <h1>📦 Parcel Tracker</h1>
-        <button class="btn-secondary btn-sm" id="btn-refresh">${t.refresh}</button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:0.75rem;color:var(--secondary-text-color)">
+            ${t.last_checked}: ${this._lastChecked ? this._formatTime(this._lastChecked) : t.never_checked}
+          </span>
+          <button class="btn-secondary btn-sm" id="btn-refresh" ${this._refreshing ? 'disabled' : ''}>
+            ${this._refreshing ? t.refreshing : t.refresh}
+          </button>
+        </div>
       </div>
       ${this._toast ? `<div class="toast ${this._toast.type}">${this._esc(this._toast.text)}</div>` : ''}
       ${active.length === 0 && this._editing === null ? this._renderEmptyState() : ''}
@@ -394,7 +427,7 @@ class ParcelTrackerPanel extends HTMLElement {
     const root = this.shadowRoot;
     const t = this._t;
 
-    root.querySelector('#btn-refresh')?.addEventListener('click', () => this._loadData());
+    root.querySelector('#btn-refresh')?.addEventListener('click', () => this._refresh());
 
     root.querySelectorAll('[data-action]').forEach(el => {
       el.addEventListener('click', () => {
@@ -419,6 +452,14 @@ class ParcelTrackerPanel extends HTMLElement {
         }
       });
     });
+  }
+
+  _formatTime(date) {
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return '< 1 min ago';
+    if (diffMin < 60) return `${diffMin} min ago`;
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   _esc(str) {
