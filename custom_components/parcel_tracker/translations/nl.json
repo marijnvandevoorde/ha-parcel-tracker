@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pakket Tracker – Pakketten 1-5",
+        "description": "Voer trackingnummers in voor pakketten 1 tot 5. Laat leeg om over te slaan.",
+        "data": {
+          "friendly_name_1": "Naam pakket 1", "tracking_number_1": "Trackingnummer 1", "carrier_1": "Bezorgdienst 1",
+          "friendly_name_2": "Naam pakket 2", "tracking_number_2": "Trackingnummer 2", "carrier_2": "Bezorgdienst 2",
+          "friendly_name_3": "Naam pakket 3", "tracking_number_3": "Trackingnummer 3", "carrier_3": "Bezorgdienst 3",
+          "friendly_name_4": "Naam pakket 4", "tracking_number_4": "Trackingnummer 4", "carrier_4": "Bezorgdienst 4",
+          "friendly_name_5": "Naam pakket 5", "tracking_number_5": "Trackingnummer 5", "carrier_5": "Bezorgdienst 5"
+        }
+      },
+      "parcels_6_10": {
+        "title": "Pakket Tracker – Pakketten 6-10",
+        "description": "Voer trackingnummers in voor pakketten 6 tot 10. Laat leeg om over te slaan.",
+        "data": {
+          "friendly_name_6": "Naam pakket 6", "tracking_number_6": "Trackingnummer 6", "carrier_6": "Bezorgdienst 6",
+          "friendly_name_7": "Naam pakket 7", "tracking_number_7": "Trackingnummer 7", "carrier_7": "Bezorgdienst 7",
+          "friendly_name_8": "Naam pakket 8", "tracking_number_8": "Trackingnummer 8", "carrier_8": "Bezorgdienst 8",
+          "friendly_name_9": "Naam pakket 9", "tracking_number_9": "Trackingnummer 9", "carrier_9": "Bezorgdienst 9",
+          "friendly_name_10": "Naam pakket 10", "tracking_number_10": "Trackingnummer 10", "carrier_10": "Bezorgdienst 10"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pakketten 1-5 bewerken",
+        "data": {
+          "friendly_name_1": "Naam pakket 1", "tracking_number_1": "Trackingnummer 1", "carrier_1": "Bezorgdienst 1",
+          "friendly_name_2": "Naam pakket 2", "tracking_number_2": "Trackingnummer 2", "carrier_2": "Bezorgdienst 2",
+          "friendly_name_3": "Naam pakket 3", "tracking_number_3": "Trackingnummer 3", "carrier_3": "Bezorgdienst 3",
+          "friendly_name_4": "Naam pakket 4", "tracking_number_4": "Trackingnummer 4", "carrier_4": "Bezorgdienst 4",
+          "friendly_name_5": "Naam pakket 5", "tracking_number_5": "Trackingnummer 5", "carrier_5": "Bezorgdienst 5"
+        }
+      },
+      "options_6_10": {
+        "title": "Pakketten 6-10 bewerken",
+        "data": {
+          "friendly_name_6": "Naam pakket 6", "tracking_number_6": "Trackingnummer 6", "carrier_6": "Bezorgdienst 6",
+          "friendly_name_7": "Naam pakket 7", "tracking_number_7": "Trackingnummer 7", "carrier_7": "Bezorgdienst 7",
+          "friendly_name_8": "Naam pakket 8", "tracking_number_8": "Trackingnummer 8", "carrier_8": "Bezorgdienst 8",
+          "friendly_name_9": "Naam pakket 9", "tracking_number_9": "Trackingnummer 9", "carrier_9": "Bezorgdienst 9",
+          "friendly_name_10": "Naam pakket 10", "tracking_number_10": "Trackingnummer 10", "carrier_10": "Bezorgdienst 10"
+        }
+      }
+    }
+  }
+}

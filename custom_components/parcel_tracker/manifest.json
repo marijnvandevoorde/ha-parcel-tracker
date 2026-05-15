@@ -1,0 +1,12 @@
+{
+  "domain": "parcel_tracker",
+  "name": "Parcel Tracker",
+  "documentation": "https://github.com/wout/ha-parcel-tracker",
+  "issue_tracker": "https://github.com/wout/ha-parcel-tracker/issues",
+  "dependencies": [],
+  "codeowners": ["@wout"],
+  "requirements": ["requests>=2.28.0", "beautifulsoup4>=4.11.0", "lxml>=4.9.0"],
+  "version": "1.0.0",
+  "config_flow": true,
+  "iot_class": "cloud_polling"
+}
