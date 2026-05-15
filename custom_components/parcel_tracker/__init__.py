@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import Platform
 from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.helpers.storage import Store
 from .const import DOMAIN, MAX_PARCELS
 from .coordinator import ParcelTrackerCoordinator
@@ -51,11 +52,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN]["_panel_registered"] = True
         ws_api.async_register(hass)
 
-        hass.http.register_static_path(
-            f"/{DOMAIN}_frontend",
-            str(Path(__file__).parent / "frontend"),
-            cache_headers=False,
-        )
+        await hass.http.async_register_static_paths([
+            StaticPathConfig(
+                f"/{DOMAIN}_frontend",
+                str(Path(__file__).parent / "frontend"),
+                cache_headers=False,
+            )
+        ])
         async_register_built_in_panel(
             hass,
             component_name="custom",
