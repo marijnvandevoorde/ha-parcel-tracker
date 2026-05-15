@@ -10,7 +10,7 @@ from homeassistant.components.frontend import async_register_built_in_panel, asy
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.storage import Store
-from .const import DOMAIN, MAX_PARCELS, CARRIERS
+from .const import DOMAIN, MAX_PARCELS, CARRIERS, VERSION
 from .coordinator import ParcelTrackerCoordinator
 from . import ws_api
 
@@ -93,7 +93,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config={
                 "_panel_custom": {
                     "name": "parcel-tracker-panel",
-                    "js_url": f"/{DOMAIN}_frontend/parcel-tracker-panel.js",
+                    "js_url": f"/{DOMAIN}_frontend/parcel-tracker-panel.js?v={VERSION}",
                 }
             },
             require_admin=False,
