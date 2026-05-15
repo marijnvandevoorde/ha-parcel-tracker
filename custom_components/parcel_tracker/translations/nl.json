@@ -1,10 +1,22 @@
 {
   "config": {
+    "step": {
+      "user": {
+        "title": "Parcel Tracker",
+        "description": "Klik op Bevestigen om te installeren. Beheer je pakketten via het zijbalk panel."
+      }
+    },
     "abort": {
       "single_instance_allowed": "Parcel Tracker is al geïnstalleerd. Beheer je pakketten via het zijbalk panel."
     }
   },
   "options": {
+    "step": {
+      "init": {
+        "title": "Parcel Tracker",
+        "description": "Beheer je pakketten via het Parcel Tracker panel in de zijbalk."
+      }
+    },
     "abort": {
       "use_panel": "Beheer je pakketten via het Parcel Tracker panel in de zijbalk."
     }
