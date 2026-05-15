@@ -4,6 +4,7 @@ const CARRIERS = {
   dhl: 'DHL (Internationaal)',
   dhl_de: 'DHL Germany',
   dpd: 'DPD',
+  fourpx: '4PX / China Post',
   tnt: 'TNT / FedEx',
   ups: 'UPS',
   postnl: 'PostNL',
@@ -167,6 +168,7 @@ const CSS = `
   }
   .carrier-label { font-size: 0.8rem; color: var(--secondary-text-color); }
   .detail { font-size: 0.8rem; color: var(--secondary-text-color); margin-top: 4px; font-style: italic; }
+  .detail-warn { color: var(--warning-color, #FF9800); font-style: normal; }
   a { color: var(--primary-color); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -377,7 +379,10 @@ class ParcelTrackerPanel extends HTMLElement {
           ${this._esc(carrierLabel)}
           ${p.tracking_url ? ` &middot; <a href="${this._esc(p.tracking_url)}" target="_blank">${t.track_link}</a>` : ''}
         </div>
-        ${p.status_detail ? `<div class="detail">${this._esc(p.status_detail)}</div>` : ''}
+        ${p.status_detail
+            ? `<div class="detail${(p.status === 'unknown' || p.status === 'exception') ? ' detail-warn' : ''}">${this._esc(p.status_detail)}</div>`
+            : (p.status === 'unknown' ? `<div class="detail detail-warn">Controleer de HA-logs voor meer info</div>` : '')
+        }
         <div class="actions">
           <button class="btn-secondary btn-sm" data-action="edit" data-slot="${p.slot}">${t.edit}</button>
           <button class="btn-danger btn-sm" data-action="delete" data-slot="${p.slot}">${t.delete}</button>

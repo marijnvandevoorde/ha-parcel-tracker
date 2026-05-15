@@ -1,7 +1,7 @@
 """Constants for Parcel Tracker integration."""
 
 DOMAIN = "parcel_tracker"
-VERSION = "1.9.0"
+VERSION = "1.10.1"
 PLATFORM = "sensor"
 
 CONF_TRACKING_NUMBER = "tracking_number"
@@ -17,6 +17,7 @@ CARRIERS = {
     "dhl": "DHL (Internationaal)",
     "dhl_de": "DHL Germany",
     "dpd": "DPD",
+    "fourpx": "4PX / China Post",
     "tnt": "TNT / FedEx",
     "ups": "UPS",
     "postnl": "PostNL",
@@ -27,6 +28,7 @@ TRACKING_URLS = {
     "dhl": "https://www.dhl.com/be-nl/home/tracking/tracking-parcel.html?submit=1&tracking-id={tracking_number}",
     "dhl_de": "https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={tracking_number}",
     "dpd": "https://tracking.dpd.de/parcelstatus?query={tracking_number}&language=nl",
+    "fourpx": "https://track.4px.com/#/result/0/{tracking_number}",
     "tnt": "https://www.fedex.com/fedextrack/?trknbr={tracking_number}",
     "ups": "https://www.ups.com/track?loc=nl_BE&tracknum={tracking_number}",
     "postnl": "https://postnl.nl/tracktrace/?B={tracking_number}&P=",

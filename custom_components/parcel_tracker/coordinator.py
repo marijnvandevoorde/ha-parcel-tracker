@@ -1,6 +1,5 @@
 """DataUpdateCoordinator for Parcel Tracker."""
 from __future__ import annotations
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from homeassistant.config_entries import ConfigEntry
@@ -40,15 +39,19 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
                 }
                 continue
             try:
-                info = await asyncio.get_event_loop().run_in_executor(
-                    None, get_tracking_info, tn, carrier
+                info = await self.hass.async_add_executor_job(
+                    get_tracking_info, tn, carrier
                 )
             except Exception as exc:
-                _LOGGER.warning("Error fetching parcel %d: %s", i, exc)
+                _LOGGER.warning("Error fetching parcel %d (%s): %s", i, tn, exc)
                 info = {
                     "status": "unknown", "status_detail": str(exc),
                     "carrier": carrier, "tracking_number": tn, "tracking_url": "",
                 }
+            _LOGGER.debug(
+                "Parcel %d (%s) carrier=%s status=%s detail=%s",
+                i, tn, info.get("carrier"), info.get("status"), info.get("status_detail"),
+            )
             info["friendly_name"] = friendly
             info["slot"] = i
             results[key] = info

@@ -42,6 +42,9 @@ def detect_carrier(tracking_number: str) -> str:
     # DPD: 14-digit codes starting with 0, or %05B prefix
     if re.match(r"^(0\d{13}|%05B\d+)$", tn):
         return "dpd"
+    # 4PX / China Post: starts with 4PX, or alphanumeric ending in CN
+    if re.match(r"^(4PX[A-Z0-9]+|[A-Z]{2}\d{9,}CN)$", tn):
+        return "fourpx"
     # TNT/FedEx: numeric 9, 12 or 15 digits
     if re.match(r"^(\d{9}|\d{12}|\d{15})$", tn):
         return "tnt"
@@ -109,7 +112,11 @@ def scrape_bpost(tracking_number: str) -> dict:
         )
         resp = requests.get(api_url, headers=HEADERS, timeout=TIMEOUT)
         if resp.status_code == 200:
-            data = resp.json()
+            try:
+                data = resp.json()
+            except ValueError:
+                result["status_detail"] = "Invalid response from bPost API"
+                return result
             items = data.get("items", [])
             if items:
                 item = items[0]
@@ -121,9 +128,10 @@ def scrape_bpost(tracking_number: str) -> dict:
                     result["status"] = _normalize_bpost(raw_status)
                 else:
                     result["status"] = "pending"
-                    result["status_detail"] = "Aangemeld"
+                    result["status_detail"] = "Aangemeld bij bPost"
+            else:
+                result["status_detail"] = "Pakket niet gevonden bij bPost"
         else:
-            result["status"] = "unknown"
             result["status_detail"] = f"HTTP {resp.status_code}"
     except Exception as exc:
         _LOGGER.error("bPost scrape error: %s", exc)
@@ -183,18 +191,28 @@ def scrape_postnl(tracking_number: str) -> dict:
         headers = {**HEADERS, "x-requested-with": "XMLHttpRequest"}
         resp = requests.get(api_url, headers=headers, timeout=TIMEOUT)
         if resp.status_code == 200:
-            data = resp.json()
+            try:
+                data = resp.json()
+            except ValueError:
+                result["status_detail"] = "Invalid response from PostNL API"
+                return result
             colli = data.get("colli", {})
             if colli:
                 first = next(iter(colli.values()))
-                status_phrase = first.get("statusPhase", {}).get("message", "")
-                result["status_detail"] = status_phrase
-                result["status"] = _normalize_postnl(status_phrase)
+                status_phase = first.get("statusPhase", {})
+                status_phrase = status_phase.get("message", "") or status_phase.get("header", "")
+                if not status_phrase:
+                    # Try alternative field
+                    status_phrase = first.get("status", {}).get("message", "")
+                result["status_detail"] = status_phrase or "Geen statusdetail beschikbaar"
+                result["status"] = _normalize_postnl(status_phrase) if status_phrase else "pending"
+            else:
+                result["status_detail"] = "Pakket niet gevonden bij PostNL"
         elif resp.status_code == 404:
             result["status"] = "pending"
-            result["status_detail"] = "Nog niet ingescand"
+            result["status_detail"] = "Nog niet ingescand bij PostNL"
         else:
-            result["status_detail"] = f"HTTP {resp.status_code}"
+            result["status_detail"] = f"PostNL HTTP {resp.status_code}"
     except Exception as exc:
         _LOGGER.error("PostNL scrape error: %s", exc)
         result["status"] = "unknown"
@@ -264,7 +282,11 @@ def scrape_dhl(tracking_number: str) -> dict:
         }
         resp = requests.get(api_url, headers=headers, timeout=TIMEOUT)
         if resp.status_code == 200:
-            data = resp.json()
+            try:
+                data = resp.json()
+            except ValueError:
+                result["status_detail"] = "Invalid response from DHL API"
+                return result
             shipments = data.get("shipments", [])
             if shipments:
                 s = shipments[0]
@@ -280,17 +302,10 @@ def scrape_dhl(tracking_number: str) -> dict:
                 )
                 if events:
                     result["status_detail"] = events[0].get("description", description)
+            else:
+                result["status_detail"] = "Zending niet gevonden bij DHL"
         else:
-            # Fallback: scrape HTML
-            soup = _get(
-                f"https://www.dhl.com/be-nl/home/tracking.html?tracking-id={tracking_number}"
-            )
-            if soup:
-                el = soup.find(class_=re.compile(r"c-tracking-result__status"))
-                if el:
-                    raw = el.get_text(strip=True)
-                    result["status_detail"] = raw
-                    result["status"] = _normalize_dhl(raw)
+            result["status_detail"] = f"DHL HTTP {resp.status_code}"
     except Exception as exc:
         _LOGGER.error("DHL scrape error: %s", exc)
         result["status"] = "unknown"
@@ -349,7 +364,11 @@ def scrape_ups(tracking_number: str) -> dict:
         headers = {**HEADERS, "X-XSRF-TOKEN": ""}
         resp = requests.get(api_url, headers=headers, timeout=TIMEOUT)
         if resp.status_code == 200:
-            data = resp.json()
+            try:
+                data = resp.json()
+            except ValueError:
+                result["status_detail"] = "Invalid response from UPS API"
+                return result
             pkgs = data.get("trackDetails", [])
             if pkgs:
                 pkg = pkgs[0]
@@ -359,8 +378,10 @@ def scrape_ups(tracking_number: str) -> dict:
                 result["status"] = _normalize_ups(status_desc)
                 if activity:
                     result["status_detail"] = activity[0].get("activityScanDescription", status_desc)
+            else:
+                result["status_detail"] = "Zending niet gevonden bij UPS"
         else:
-            result["status_detail"] = f"HTTP {resp.status_code}"
+            result["status_detail"] = f"UPS HTTP {resp.status_code}"
     except Exception as exc:
         _LOGGER.error("UPS scrape error: %s", exc)
         result["status"] = "unknown"
@@ -418,7 +439,11 @@ def scrape_tnt(tracking_number: str) -> dict:
         )
         resp = requests.get(api_url, headers=HEADERS, timeout=TIMEOUT)
         if resp.status_code == 200:
-            data = resp.json()
+            try:
+                data = resp.json()
+            except ValueError:
+                result["status_detail"] = "Invalid response from FedEx API"
+                return result
             packages = (
                 data.get("TrackPackagesResponse", {})
                     .get("packageList", [])
@@ -428,8 +453,10 @@ def scrape_tnt(tracking_number: str) -> dict:
                 key_status = pkg.get("keyStatus", "")
                 result["status_detail"] = key_status
                 result["status"] = _normalize_tnt(key_status)
+            else:
+                result["status_detail"] = "Zending niet gevonden bij FedEx/TNT"
         else:
-            result["status_detail"] = f"HTTP {resp.status_code}"
+            result["status_detail"] = f"FedEx HTTP {resp.status_code}"
     except Exception as exc:
         _LOGGER.error("TNT scrape error: %s", exc)
         result["status"] = "unknown"
@@ -471,40 +498,77 @@ def _normalize_dpd(raw: str) -> str:
 
 
 def scrape_dpd(tracking_number: str) -> dict:
-    """Scrape DPD tracking via their REST API."""
+    """Scrape DPD tracking — tries REST API first, falls back to HTML page."""
+    tracking_url = f"https://tracking.dpd.de/parcelstatus?query={tracking_number}&language=nl"
     result = {
         "status": "unknown",
         "status_detail": "",
         "carrier": "dpd",
         "tracking_number": tracking_number,
-        "tracking_url": f"https://tracking.dpd.de/parcelstatus?query={tracking_number}&language=nl",
+        "tracking_url": tracking_url,
     }
     try:
+        # --- attempt 1: REST API ---
         api_url = f"https://tracking.dpd.de/rest/plc/{tracking_number}"
-        resp = requests.get(api_url, headers=HEADERS, timeout=TIMEOUT)
+        api_headers = {
+            **HEADERS,
+            "Accept": "application/json",
+            "Referer": tracking_url,
+        }
+        resp = requests.get(api_url, headers=api_headers, timeout=TIMEOUT)
         if resp.status_code == 200:
             try:
                 data = resp.json()
-            except ValueError:
-                result["status_detail"] = "Invalid response from DPD API"
+                parcel_lifecycle = data.get("parcellifecycleResponse", {})
+                status_info = parcel_lifecycle.get("parcelLifeCycleData", {})
+                scan_info = status_info.get("statusInfo", [])
+                if scan_info:
+                    latest = scan_info[0]
+                    label = (
+                        latest.get("label", {}).get("content", [""])[0]
+                        if latest.get("label", {}).get("content")
+                        else ""
+                    )
+                    result["status_detail"] = label
+                    result["status"] = _normalize_dpd(label)
+                else:
+                    result["status"] = "pending"
+                    result["status_detail"] = "Registered at DPD"
                 return result
-            parcel_lifecycle = data.get("parcellifecycleResponse", {})
-            status_info = parcel_lifecycle.get("parcelLifeCycleData", {})
-            scan_info = status_info.get("statusInfo", [])
-            if scan_info:
-                latest = scan_info[0]
-                label = (
-                    latest.get("label", {}).get("content", [""])[0]
-                    if latest.get("label", {}).get("content")
-                    else ""
-                )
+            except (ValueError, KeyError, TypeError):
+                pass  # fall through to HTML scraping
+
+        # --- attempt 2: scrape the HTML tracking page ---
+        html_headers = {**HEADERS, "Referer": "https://tracking.dpd.de/"}
+        html_resp = requests.get(tracking_url, headers=html_headers, timeout=TIMEOUT)
+        if html_resp.status_code == 200:
+            soup = BeautifulSoup(html_resp.text, "lxml")
+            # DPD puts the latest status in elements with class "statusText" or "status-text"
+            status_el = (
+                soup.find(class_="statusText")
+                or soup.find(class_="status-text")
+                or soup.find(class_="current-status")
+                or soup.select_one(".dpd-status .text")
+            )
+            if status_el:
+                label = status_el.get_text(strip=True)
                 result["status_detail"] = label
                 result["status"] = _normalize_dpd(label)
             else:
-                result["status"] = "pending"
-                result["status_detail"] = "Registered at DPD"
+                # Try to find any visible status-like text in the page
+                for el in soup.find_all(True):
+                    text = el.get_text(strip=True)
+                    if text and len(text) < 120:
+                        normalized = _normalize_dpd(text)
+                        if normalized != "unknown":
+                            result["status_detail"] = text
+                            result["status"] = normalized
+                            break
+                else:
+                    result["status"] = "pending"
+                    result["status_detail"] = "Registered at DPD"
         else:
-            result["status_detail"] = f"HTTP {resp.status_code}"
+            result["status_detail"] = f"HTTP {html_resp.status_code}"
     except Exception as exc:
         _LOGGER.error("DPD scrape error: %s", exc)
         result["status"] = "unknown"
@@ -530,6 +594,7 @@ def scrape_dhl_de(tracking_number: str) -> dict:
             try:
                 data = resp.json()
             except ValueError:
+                result["status_detail"] = "Invalid response from DHL Germany API"
                 return result
             shipments = data.get("shipments", [])
             if shipments:
@@ -545,10 +610,88 @@ def scrape_dhl_de(tracking_number: str) -> dict:
                 )
                 if events:
                     result["status_detail"] = events[0].get("description", description)
+            else:
+                result["status_detail"] = "Zending niet gevonden bij DHL Germany"
+        else:
+            result["status_detail"] = f"DHL Germany HTTP {resp.status_code}"
         # Always provide a working tracking link even if API fails
         result["tracking_url"] = tracking_url
     except Exception as exc:
         _LOGGER.error("DHL Germany scrape error: %s", exc)
+        result["status_detail"] = str(exc)
+    return result
+
+
+def _normalize_fourpx(raw: str) -> str:
+    raw = raw.lower()
+    if any(w in raw for w in [
+        "delivered", "afgeleverd", "zugestellt",
+        "livré", "livre", "remis", "签收", "已签收",
+    ]):
+        return "delivered"
+    if any(w in raw for w in [
+        "out for delivery", "delivering", "bezorger",
+        "en livraison", "in zustellung", "派送中",
+    ]):
+        return "out_for_delivery"
+    if any(w in raw for w in [
+        "transit", "departed", "arrived", "processed", "clearance",
+        "en transit", "unterwegs", "acheminé", "achemine",
+        "transport", "customs", "douane", "zoll", "in transit",
+        "已发出", "运输中", "到达", "离开",
+    ]):
+        return "in_transit"
+    if any(w in raw for w in [
+        "picked up", "registered", "accepted", "aangemeld",
+        "enregistré", "enregistre", "angemeldet",
+        "已收件", "揽收",
+    ]):
+        return "pending"
+    if any(w in raw for w in [
+        "exception", "failed", "delay", "held",
+        "incident", "retard", "fehler", "verzögerung",
+        "异常", "退回",
+    ]):
+        return "exception"
+    return "unknown"
+
+
+def scrape_fourpx(tracking_number: str) -> dict:
+    """Scrape 4PX / China Post tracking."""
+    tracking_url = f"https://track.4px.com/#/result/0/{tracking_number}"
+    result = {
+        "status": "unknown",
+        "status_detail": "",
+        "carrier": "fourpx",
+        "tracking_number": tracking_number,
+        "tracking_url": tracking_url,
+    }
+    try:
+        api_url = "https://track.4px.com/api/v2/track"
+        payload = {"numbers": [tracking_number]}
+        headers = {**HEADERS, "Content-Type": "application/json"}
+        resp = requests.post(api_url, json=payload, headers=headers, timeout=TIMEOUT)
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+            except ValueError:
+                return result
+            items = data.get("data", {}).get("items", [])
+            if items:
+                item = items[0]
+                events = item.get("events", [])
+                if events:
+                    latest = events[0]
+                    desc = latest.get("description", "")
+                    result["status_detail"] = desc
+                    result["status"] = _normalize_fourpx(desc)
+                else:
+                    result["status"] = "pending"
+                    result["status_detail"] = "Registered at 4PX"
+        else:
+            result["status_detail"] = f"HTTP {resp.status_code}"
+    except Exception as exc:
+        _LOGGER.error("4PX scrape error: %s", exc)
         result["status_detail"] = str(exc)
     return result
 
@@ -561,6 +704,7 @@ SCRAPER_MAP = {
     "dpd": scrape_dpd,
     "ups": scrape_ups,
     "tnt": scrape_tnt,
+    "fourpx": scrape_fourpx,
 }
 
 
