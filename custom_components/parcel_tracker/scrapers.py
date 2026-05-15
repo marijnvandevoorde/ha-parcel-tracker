@@ -24,23 +24,26 @@ def detect_carrier(tracking_number: str) -> str:
     """Auto-detect carrier from tracking number format."""
     tn = tracking_number.strip().upper()
 
-    # bPost: 323xxxxxxxxx or JD0xxxxxxxxx or barcode starting with 32
-    if re.match(r"^(323\d{9}|JD0\d{14}|3S[A-Z0-9]{10,})$", tn):
+    # bPost: 323xxxxxxxxx or JD0xxxxxxxxx
+    if re.match(r"^(323\d{9}|JD0\d{14})$", tn):
         return "bpost"
-    # PostNL: 3S + 14 alphanumeric, or JVGL, or RR..NL
-    if re.match(r"^(3S[A-Z0-9]{13}|JVGL[A-Z0-9]+|[A-Z]{2}\d{9}NL)$", tn):
+    # PostNL: 3S + alphanumeric, or JVGL, or RR..NL
+    if re.match(r"^(3S[A-Z0-9]{10,}|JVGL[A-Z0-9]+|[A-Z]{2}\d{9}NL)$", tn):
         return "postnl"
-    # DHL: JD015600\d{12} or 1Z... no (that's UPS), or numeric 10-12 digits
-    if re.match(r"^(JD\d{18}|\d{10,12}|[A-Z0-9]{10}DHL)$", tn):
-        return "dhl"
     # UPS: 1Z + 16 chars
     if re.match(r"^1Z[A-Z0-9]{16}$", tn):
         return "ups"
+    # DHL Germany: standard UPU format XX + digits + 2-letter country code (e.g. CD662144845DE)
+    if re.match(r"^[A-Z]{2}\d{8,9}[A-Z]{2}$", tn):
+        return "dhl_de"
+    # DHL international: JD + 18 digits, or 10-12 digits, or ends with DHL
+    if re.match(r"^(JD\d{18}|\d{10,12}|[A-Z0-9]{10}DHL)$", tn):
+        return "dhl"
     # DPD: 14-digit codes starting with 0, or %05B prefix
     if re.match(r"^(0\d{13}|%05B\d+)$", tn):
         return "dpd"
-    # TNT/FedEx: numeric 9, 12 or 15 digits, or GE..
-    if re.match(r"^(\d{9}|\d{12}|\d{15}|[A-Z]{2}\d{9})$", tn):
+    # TNT/FedEx: numeric 9, 12 or 15 digits
+    if re.match(r"^(\d{9}|\d{12}|\d{15})$", tn):
         return "tnt"
 
     return "unknown"
@@ -480,19 +483,26 @@ def scrape_dpd(tracking_number: str) -> dict:
         api_url = f"https://tracking.dpd.de/rest/plc/{tracking_number}"
         resp = requests.get(api_url, headers=HEADERS, timeout=TIMEOUT)
         if resp.status_code == 200:
-            data = resp.json()
-            depot_data = data.get("depot", {})
+            try:
+                data = resp.json()
+            except ValueError:
+                result["status_detail"] = "Invalid response from DPD API"
+                return result
             parcel_lifecycle = data.get("parcellifecycleResponse", {})
             status_info = parcel_lifecycle.get("parcelLifeCycleData", {})
             scan_info = status_info.get("statusInfo", [])
             if scan_info:
                 latest = scan_info[0]
-                label = latest.get("label", {}).get("content", [""])[0] if latest.get("label", {}).get("content") else ""
+                label = (
+                    latest.get("label", {}).get("content", [""])[0]
+                    if latest.get("label", {}).get("content")
+                    else ""
+                )
                 result["status_detail"] = label
                 result["status"] = _normalize_dpd(label)
             else:
                 result["status"] = "pending"
-                result["status_detail"] = "Aangemeld bij DPD"
+                result["status_detail"] = "Registered at DPD"
         else:
             result["status_detail"] = f"HTTP {resp.status_code}"
     except Exception as exc:
@@ -503,12 +513,43 @@ def scrape_dpd(tracking_number: str) -> dict:
 
 
 def scrape_dhl_de(tracking_number: str) -> dict:
-    """Scrape DHL Germany — uses same DHL API but links to dhl.de."""
-    result = scrape_dhl(tracking_number)
-    result["carrier"] = "dhl_de"
-    result["tracking_url"] = (
-        f"https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={tracking_number}"
-    )
+    """Scrape DHL Germany via their tracking API."""
+    tracking_url = f"https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={tracking_number}"
+    result = {
+        "status": "unknown",
+        "status_detail": "",
+        "carrier": "dhl_de",
+        "tracking_number": tracking_number,
+        "tracking_url": tracking_url,
+    }
+    try:
+        api_url = f"https://api-eu.dhl.com/track/shipments?trackingNumber={tracking_number}"
+        headers = {**HEADERS, "DHL-API-Key": "demo-key"}
+        resp = requests.get(api_url, headers=headers, timeout=TIMEOUT)
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+            except ValueError:
+                return result
+            shipments = data.get("shipments", [])
+            if shipments:
+                s = shipments[0]
+                events = s.get("events", [])
+                status_obj = s.get("status", {})
+                description = status_obj.get("description", "")
+                status_code = status_obj.get("status", "").lower().replace("_", "-")
+                result["status_detail"] = description
+                result["status"] = (
+                    _DHL_STATUS_CODES.get(status_code)
+                    or _normalize_dhl(description)
+                )
+                if events:
+                    result["status_detail"] = events[0].get("description", description)
+        # Always provide a working tracking link even if API fails
+        result["tracking_url"] = tracking_url
+    except Exception as exc:
+        _LOGGER.error("DHL Germany scrape error: %s", exc)
+        result["status_detail"] = str(exc)
     return result
 
 
