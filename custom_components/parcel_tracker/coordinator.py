@@ -23,13 +23,14 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
         self.entry = entry
 
     async def _async_update_data(self) -> dict:
-        data = self.entry.options or self.entry.data
+        slots = self.hass.data[DOMAIN][self.entry.entry_id]["slots"]
         results = {}
         for i in range(1, MAX_PARCELS + 1):
             key = f"parcel_{i}"
-            tn = data.get(f"tracking_number_{i}", "").strip()
-            carrier = data.get(f"carrier_{i}", "auto")
-            friendly = data.get(f"friendly_name_{i}", "") or f"Parcel {i}"
+            slot = slots[i]
+            tn = slot["tracking"].strip()
+            carrier = slot["carrier"]
+            friendly = slot["friendly_name"]
             if not tn:
                 results[key] = {
                     "status": "empty", "status_detail": "",

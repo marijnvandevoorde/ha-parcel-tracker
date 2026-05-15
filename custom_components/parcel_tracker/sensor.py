@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator: ParcelTrackerCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: ParcelTrackerCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     async_add_entities(
         ParcelSensor(coordinator, i) for i in range(1, MAX_PARCELS + 1)
     )
