@@ -1,0 +1,55 @@
+add_parcel:
+  name: Pakket toevoegen
+  description: Voeg een pakket toe aan de volgende vrije slot.
+  fields:
+    tracking_number:
+      name: Trackingnummer
+      description: Het trackingnummer van het pakket.
+      required: true
+      example: "JD014600004860246190"
+      selector:
+        text:
+    carrier:
+      name: Bezorgdienst
+      description: De bezorgdienst. Laat leeg voor automatische detectie.
+      required: false
+      default: auto
+      example: auto
+      selector:
+        select:
+          options:
+            - value: auto
+              label: Auto-detect
+            - value: bpost
+              label: bPost
+            - value: dhl
+              label: "DHL (Internationaal)"
+            - value: dhl_de
+              label: DHL Germany
+            - value: dpd
+              label: DPD
+            - value: tnt
+              label: TNT / FedEx
+            - value: ups
+              label: UPS
+            - value: postnl
+              label: PostNL
+    friendly_name:
+      name: Naam
+      description: Optionele naam voor het pakket.
+      required: false
+      example: "Bestelling bol.com"
+      selector:
+        text:
+
+remove_parcel:
+  name: Pakket verwijderen
+  description: Verwijder een pakket op basis van het trackingnummer.
+  fields:
+    tracking_number:
+      name: Trackingnummer
+      description: Het trackingnummer van het te verwijderen pakket.
+      required: true
+      example: "JD014600004860246190"
+      selector:
+        text:
