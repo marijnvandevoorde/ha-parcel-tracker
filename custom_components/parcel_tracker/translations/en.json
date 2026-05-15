@@ -1,72 +1,12 @@
 {
   "config": {
-    "step": {
-      "user": {
-        "title": "Parcel Tracker – Parcels 1-5",
-        "description": "Enter tracking numbers for parcels 1 to 5. Leave empty to skip.",
-        "data": {
-          "friendly_name_1": "Name parcel 1",
-          "tracking_number_1": "Tracking number 1",
-          "carrier_1": "Carrier 1",
-          "friendly_name_2": "Name parcel 2",
-          "tracking_number_2": "Tracking number 2",
-          "carrier_2": "Carrier 2",
-          "friendly_name_3": "Name parcel 3",
-          "tracking_number_3": "Tracking number 3",
-          "carrier_3": "Carrier 3",
-          "friendly_name_4": "Name parcel 4",
-          "tracking_number_4": "Tracking number 4",
-          "carrier_4": "Carrier 4",
-          "friendly_name_5": "Name parcel 5",
-          "tracking_number_5": "Tracking number 5",
-          "carrier_5": "Carrier 5"
-        }
-      },
-      "parcels_6_10": {
-        "title": "Parcel Tracker – Parcels 6-10",
-        "description": "Enter tracking numbers for parcels 6 to 10. Leave empty to skip.",
-        "data": {
-          "friendly_name_6": "Name parcel 6",
-          "tracking_number_6": "Tracking number 6",
-          "carrier_6": "Carrier 6",
-          "friendly_name_7": "Name parcel 7",
-          "tracking_number_7": "Tracking number 7",
-          "carrier_7": "Carrier 7",
-          "friendly_name_8": "Name parcel 8",
-          "tracking_number_8": "Tracking number 8",
-          "carrier_8": "Carrier 8",
-          "friendly_name_9": "Name parcel 9",
-          "tracking_number_9": "Tracking number 9",
-          "carrier_9": "Carrier 9",
-          "friendly_name_10": "Name parcel 10",
-          "tracking_number_10": "Tracking number 10",
-          "carrier_10": "Carrier 10"
-        }
-      }
+    "abort": {
+      "single_instance_allowed": "Parcel Tracker is already installed. Manage your parcels via the sidebar panel."
     }
   },
   "options": {
-    "step": {
-      "init": {
-        "title": "Edit parcels 1-5",
-        "data": {
-          "friendly_name_1": "Name parcel 1", "tracking_number_1": "Tracking number 1", "carrier_1": "Carrier 1",
-          "friendly_name_2": "Name parcel 2", "tracking_number_2": "Tracking number 2", "carrier_2": "Carrier 2",
-          "friendly_name_3": "Name parcel 3", "tracking_number_3": "Tracking number 3", "carrier_3": "Carrier 3",
-          "friendly_name_4": "Name parcel 4", "tracking_number_4": "Tracking number 4", "carrier_4": "Carrier 4",
-          "friendly_name_5": "Name parcel 5", "tracking_number_5": "Tracking number 5", "carrier_5": "Carrier 5"
-        }
-      },
-      "options_6_10": {
-        "title": "Edit parcels 6-10",
-        "data": {
-          "friendly_name_6": "Name parcel 6", "tracking_number_6": "Tracking number 6", "carrier_6": "Carrier 6",
-          "friendly_name_7": "Name parcel 7", "tracking_number_7": "Tracking number 7", "carrier_7": "Carrier 7",
-          "friendly_name_8": "Name parcel 8", "tracking_number_8": "Tracking number 8", "carrier_8": "Carrier 8",
-          "friendly_name_9": "Name parcel 9", "tracking_number_9": "Tracking number 9", "carrier_9": "Carrier 9",
-          "friendly_name_10": "Name parcel 10", "tracking_number_10": "Tracking number 10", "carrier_10": "Carrier 10"
-        }
-      }
+    "abort": {
+      "use_panel": "Manage your parcels via the Parcel Tracker panel in the sidebar."
     }
   }
 }
