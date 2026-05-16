@@ -39,9 +39,11 @@ Repository: https://github.com/wwoutt/ha-parcel-tracker
 ## Werkafspraken
 
 ### Versiebeheer
-- Bij elke nieuwe functionaliteit of bugfix de versie ophogen in **beide**:
+- Bij elke nieuwe functionaliteit of bugfix de versie ophogen in **alle drie**:
   - `custom_components/parcel_tracker/const.py` → `VERSION = "x.x.x"`
   - `custom_components/parcel_tracker/manifest.json` → `"version": "x.x.x"`
+  - `README.md` → badge `![Version](https://img.shields.io/badge/version-x.x.x-green)`
+- De versie in README, manifest en const.py moet altijd identiek zijn
 - Patch (x.x.**1**) voor bugfixes, minor (x.**1**.0) voor nieuwe features
 
 ### Taal
