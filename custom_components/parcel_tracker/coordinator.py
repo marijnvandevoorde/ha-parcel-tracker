@@ -23,11 +23,16 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
         self.last_checked: datetime | None = None
 
     def _get_config(self) -> TrackerConfig:
-        """Build a TrackerConfig from the current config entry options."""
+        """Build a TrackerConfig from the current config entry.
+
+        Keys set via the options flow (entry.options) take precedence over
+        keys stored during initial installation (entry.data).
+        """
         options = self.entry.options or {}
+        data = self.entry.data or {}
         return TrackerConfig(
-            dhl_api_key=options.get(CONF_DHL_API_KEY, ""),
-            pkge_api_key=options.get(CONF_PKGE_API_KEY, ""),
+            dhl_api_key=options.get(CONF_DHL_API_KEY) or data.get(CONF_DHL_API_KEY, ""),
+            pkge_api_key=options.get(CONF_PKGE_API_KEY) or data.get(CONF_PKGE_API_KEY, ""),
         )
 
     async def _async_update_data(self) -> dict:

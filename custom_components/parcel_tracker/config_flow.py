@@ -14,15 +14,12 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
-            options = {
+            # Store API keys in data (options= is not supported in config flow)
+            data = {
                 CONF_DHL_API_KEY: (user_input.get(CONF_DHL_API_KEY) or "").strip(),
                 CONF_PKGE_API_KEY: (user_input.get(CONF_PKGE_API_KEY) or "").strip(),
             }
-            return self.async_create_entry(
-                title="Parcel Tracker",
-                data={},
-                options=options,
-            )
+            return self.async_create_entry(title="Parcel Tracker", data=data)
 
         return self.async_show_form(
             step_id="user",
