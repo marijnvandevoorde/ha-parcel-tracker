@@ -101,10 +101,19 @@ Repository: https://github.com/wwoutt/ha-parcel-tracker
 - Panel toont `status_detail` in oranje bij `unknown`/`exception` status
 - Fallback-hint in panel als er geen detail beschikbaar is
 
-### v1.10.2 (huidig)
+### v1.10.2
 - DHL Germany: overgestapt van rate-limited demo-key API naar DHL.de's eigen interne website-API (`/int-verfolgen/search`)
 - DPD: session-gebaseerde aanpak (eerst cookies ophalen, dan AJAX-call) — foute HTML-fallback verwijderd
 - 4PX: hulpfunctie `_parse_fourpx_response` die meerdere response-structuren probeert, betere foutmeldingen
+
+### v1.11.0 (huidig)
+- **DHL Developer API** geïntegreerd: `scrape_dhl` en `scrape_dhl_de` gebruiken nu de officiële DHL Unified Tracking API (`api-eu.dhl.com`) wanneer een API-sleutel is ingesteld (gratis, 250/dag, registreer op developer.dhl.com). Zonder sleutel: fallback naar demo-key (DHL Express) of DHL.de website-API (DHL Germany).
+- **pkge.net API** geïntegreerd: `scrape_dpd` en `scrape_fourpx` gebruiken pkge.net wanneer een API-sleutel is ingesteld (gratis, 50 pakketten/maand, registreer op business.pkge.net). Zonder sleutel: bestaande fallback-scrapers.
+- `TrackerConfig` dataclass toegevoegd in `scrapers.py` voor het doorgeven van API-sleutels aan scrapers
+- `config_flow.py`: opties-stap toegevoegd met formulier voor DHL en pkge.net API-sleutels (in HA via Instellingen → Integraties → Parcel Tracker → Configureren)
+- `coordinator.py`: leest API-sleutels uit `entry.options` en geeft ze door als `TrackerConfig`
+- `strings.json` + vertalingen (`nl.json`, `en.json`) bijgewerkt met opties-formulier inclusief beschrijvingen en links naar registratiepagina's
+- Alle scraper-functies hebben nu een optionele `config: TrackerConfig | None` parameter
 
 ---
 

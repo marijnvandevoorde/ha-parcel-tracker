@@ -3,7 +3,15 @@
     "step": {
       "user": {
         "title": "Parcel Tracker",
-        "description": "Click Submit to install. Manage your parcels via the sidebar panel."
+        "description": "Enter your API keys below to enable reliable tracking. Both keys are free and optional — you can also add them later via the integration settings.\n\n**DHL API Key** (DHL Express + DHL Germany) — Free, 250 calls/day.\n→ Register at [developer.dhl.com](https://developer.dhl.com), create an app and copy the **Consumer Key**.\n\n**pkge.net API Key** (DPD + 4PX / China Post) — Free, 50 parcels/month.\n→ Register at [business.pkge.net](https://business.pkge.net), go to **Company profile → API key**.",
+        "data": {
+          "dhl_api_key": "DHL API Key",
+          "pkge_api_key": "pkge.net API Key"
+        },
+        "data_description": {
+          "dhl_api_key": "developer.dhl.com → My Apps → Consumer Key",
+          "pkge_api_key": "business.pkge.net → Company profile → API key"
+        }
       }
     },
     "abort": {
@@ -13,12 +21,17 @@
   "options": {
     "step": {
       "init": {
-        "title": "Parcel Tracker",
-        "description": "Manage your parcels via the Parcel Tracker panel in the sidebar."
+        "title": "Parcel Tracker — API Keys",
+        "description": "Update your API keys here. Changes take effect immediately.\n\n**DHL API Key** (DHL Express + DHL Germany) — Free, 250 calls/day.\n→ [developer.dhl.com](https://developer.dhl.com) → My Apps → Consumer Key\n\n**pkge.net API Key** (DPD + 4PX / China Post) — Free, 50 parcels/month.\n→ [business.pkge.net](https://business.pkge.net) → Company profile → API key",
+        "data": {
+          "dhl_api_key": "DHL API Key",
+          "pkge_api_key": "pkge.net API Key"
+        },
+        "data_description": {
+          "dhl_api_key": "developer.dhl.com → My Apps → Consumer Key",
+          "pkge_api_key": "business.pkge.net → Company profile → API key"
+        }
       }
-    },
-    "abort": {
-      "use_panel": "Manage your parcels via the Parcel Tracker panel in the sidebar."
     }
   }
 }

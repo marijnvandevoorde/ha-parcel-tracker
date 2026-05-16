@@ -1,12 +1,14 @@
 """Constants for Parcel Tracker integration."""
 
 DOMAIN = "parcel_tracker"
-VERSION = "1.10.3"
+VERSION = "1.11.0"
 PLATFORM = "sensor"
 
 CONF_TRACKING_NUMBER = "tracking_number"
 CONF_CARRIER = "carrier"
 CONF_FRIENDLY_NAME = "friendly_name"
+CONF_DHL_API_KEY = "dhl_api_key"
+CONF_PKGE_API_KEY = "pkge_api_key"
 
 DEFAULT_SCAN_INTERVAL = 30  # minutes
 MAX_PARCELS = 10

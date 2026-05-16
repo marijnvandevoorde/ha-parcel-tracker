@@ -2,6 +2,8 @@
 from __future__ import annotations
 import logging
 import re
+import time
+from dataclasses import dataclass, field
 import requests
 from bs4 import BeautifulSoup
 
@@ -19,6 +21,18 @@ HEADERS = {
 
 TIMEOUT = 15
 
+
+@dataclass
+class TrackerConfig:
+    """API keys and settings passed through to scrapers."""
+
+    dhl_api_key: str = ""
+    pkge_api_key: str = ""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Carrier auto-detection
+# ─────────────────────────────────────────────────────────────────────────────
 
 def detect_carrier(tracking_number: str) -> str:  # noqa: PLR0911
     """Auto-detect carrier from tracking number format.
@@ -93,6 +107,10 @@ def detect_carrier(tracking_number: str) -> str:  # noqa: PLR0911
     return "unknown"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _get(url: str) -> BeautifulSoup | None:
     """Perform GET request and return BeautifulSoup object."""
     try:
@@ -103,6 +121,144 @@ def _get(url: str) -> BeautifulSoup | None:
         _LOGGER.warning("Request failed for %s: %s", url, exc)
         return None
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# pkge.net — universal fallback for DPD and 4PX
+# ─────────────────────────────────────────────────────────────────────────────
+
+# pkge.net integer status codes → our status strings
+_PKGE_STATUS_MAP: dict[int, str] = {
+    -1: "pending",   # Receiving status (not started yet)
+    0: "pending",    # Added, not yet updated
+    1: "pending",    # First update in progress
+    2: "unknown",    # Updated but no info received
+    3: "in_transit", # In transit
+    4: "out_for_delivery",  # At delivery point
+    5: "delivered",  # Delivered to recipient
+    6: "exception",  # Failed delivery attempt
+    7: "exception",  # Delivery error (package destroyed etc.)
+    8: "pending",    # Info received, not yet sent
+    9: "in_transit", # End of tracked route
+}
+
+
+def _scrape_pkgenet(
+    tracking_number: str,
+    carrier: str,
+    pkge_api_key: str,
+    tracking_url: str,
+) -> dict:
+    """Fetch tracking via pkge.net API.
+
+    pkge.net uses a register-then-poll model:
+    1. GET existing package → if not found, POST to register, then GET again.
+    2. Map integer status code to our status strings.
+    Supports DPD, 4PX, China Post and 400+ other carriers.
+    """
+    result = {
+        "status": "unknown",
+        "status_detail": "",
+        "carrier": carrier,
+        "tracking_number": tracking_number,
+        "tracking_url": tracking_url,
+    }
+
+    pkge_headers = {
+        "X-Api-Key": pkge_api_key,
+        "Accept": "application/json",
+    }
+    get_url = "https://api.pkge.net/v1/packages"
+    params = {"trackNumber": tracking_number}
+
+    try:
+        # Step 1: try fetching an already-registered package
+        resp = requests.get(get_url, params=params, headers=pkge_headers, timeout=TIMEOUT)
+
+        if resp.status_code == 404 or resp.status_code == 200 and _pkge_not_found(resp):
+            # Not registered yet — add it (POST)
+            add_resp = requests.post(
+                get_url,
+                params={"trackNumber": tracking_number, "courierId": -1},
+                headers=pkge_headers,
+                timeout=TIMEOUT,
+            )
+            if add_resp.status_code == 200:
+                add_data = add_resp.json() if add_resp.text else {}
+                # Code 905 = monthly add-limit reached
+                if add_data.get("code") == 905:
+                    result["status_detail"] = (
+                        "pkge.net: maandlimiet van 50 pakketten bereikt. "
+                        "Upgrade via business.pkge.net of verwijder ongebruikte pakketten."
+                    )
+                    return result
+            elif add_resp.status_code == 401:
+                result["status_detail"] = "pkge.net: ongeldige API-sleutel"
+                return result
+            # Short wait then fetch the now-registered package
+            time.sleep(1)
+            resp = requests.get(get_url, params=params, headers=pkge_headers, timeout=TIMEOUT)
+
+        # Handle auth errors
+        if resp.status_code == 401:
+            result["status_detail"] = "pkge.net: ongeldige API-sleutel"
+            return result
+        if resp.status_code != 200:
+            result["status_detail"] = f"pkge.net HTTP {resp.status_code}"
+            return result
+
+        try:
+            data = resp.json()
+        except ValueError:
+            result["status_detail"] = "pkge.net: geen geldig JSON antwoord"
+            return result
+
+        payload = data.get("payload")
+        if not payload or not isinstance(payload, dict):
+            result["status_detail"] = "pkge.net: geen data ontvangen"
+            return result
+
+        status_int = payload.get("status", -1)
+        result["status"] = _PKGE_STATUS_MAP.get(status_int, "unknown")
+
+        # Best status detail: latest checkpoint title + location, or last_status
+        checkpoints = payload.get("checkpoints") or []
+        last_status = payload.get("last_status", "")
+
+        if checkpoints and checkpoints[0].get("title"):
+            cp = checkpoints[0]
+            detail = cp["title"]
+            location = cp.get("location", "")
+            if location:
+                detail = f"{detail} — {location}"
+            result["status_detail"] = detail
+        elif last_status and last_status not in ("Receiving status...", ""):
+            result["status_detail"] = last_status
+        else:
+            result["status_detail"] = "Aangemeld, wacht op eerste scan"
+            if status_int == -1:
+                result["status"] = "pending"
+
+    except Exception as exc:
+        _LOGGER.error("pkge.net error for %s/%s: %s", carrier, tracking_number, exc)
+        result["status_detail"] = str(exc)
+
+    return result
+
+
+def _pkge_not_found(resp: requests.Response) -> bool:
+    """Return True if pkge.net response indicates package is not registered."""
+    try:
+        data = resp.json()
+        code = data.get("code", 200)
+        # 404-equivalent codes or empty payload
+        return code not in (200,) or not data.get("payload")
+    except (ValueError, AttributeError):
+        return True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# bPost
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_bpost(raw: str) -> str:
     raw = raw.lower()
@@ -137,7 +293,7 @@ def _normalize_bpost(raw: str) -> str:
     return "unknown"
 
 
-def scrape_bpost(tracking_number: str) -> dict:
+def scrape_bpost(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape bPost tracking via their API endpoint."""
     result = {
         "status": "unknown",
@@ -181,6 +337,10 @@ def scrape_bpost(tracking_number: str) -> dict:
     return result
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PostNL
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _normalize_postnl(raw: str) -> str:
     raw = raw.lower()
     if any(w in raw for w in [
@@ -215,7 +375,7 @@ def _normalize_postnl(raw: str) -> str:
     return "unknown"
 
 
-def scrape_postnl(tracking_number: str) -> dict:
+def scrape_postnl(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape PostNL via their tracking API."""
     result = {
         "status": "unknown",
@@ -243,7 +403,6 @@ def scrape_postnl(tracking_number: str) -> dict:
                 status_phase = first.get("statusPhase", {})
                 status_phrase = status_phase.get("message", "") or status_phase.get("header", "")
                 if not status_phrase:
-                    # Try alternative field
                     status_phrase = first.get("status", {}).get("message", "")
                 result["status_detail"] = status_phrase or "Geen statusdetail beschikbaar"
                 result["status"] = _normalize_postnl(status_phrase) if status_phrase else "pending"
@@ -261,15 +420,21 @@ def scrape_postnl(tracking_number: str) -> dict:
     return result
 
 
-# DHL API returns these status codes directly — more reliable than text normalization
+# ─────────────────────────────────────────────────────────────────────────────
+# DHL (Express + Germany) — official DHL Developer API or website fallback
+# ─────────────────────────────────────────────────────────────────────────────
+
+# DHL Unified API statusCode strings → our status
 _DHL_STATUS_CODES = {
     "delivered": "delivered",
     "in-transit": "in_transit",
     "transit": "in_transit",
     "out-for-delivery": "out_for_delivery",
     "delivery-failure": "exception",
+    "failure": "exception",
     "pre-transit": "pending",
     "return": "exception",
+    "unknown": "unknown",
 }
 
 
@@ -304,55 +469,174 @@ def _normalize_dhl(raw: str) -> str:
     return "unknown"
 
 
-def scrape_dhl(tracking_number: str) -> dict:
-    """Scrape DHL via their tracking API."""
+def _scrape_dhl_api(
+    tracking_number: str,
+    carrier: str,
+    api_key: str,
+    tracking_url: str,
+) -> dict:
+    """Call the official DHL Unified Tracking API (developer.dhl.com).
+
+    Covers DHL Express, DHL eCommerce and DHL Paket Germany.
+    Free tier: 250 calls/day, register at developer.dhl.com.
+    """
     result = {
         "status": "unknown",
         "status_detail": "",
-        "carrier": "dhl",
+        "carrier": carrier,
         "tracking_number": tracking_number,
-        "tracking_url": f"https://www.dhl.com/be-nl/home/tracking/tracking-parcel.html?submit=1&tracking-id={tracking_number}",
+        "tracking_url": tracking_url,
+    }
+    try:
+        resp = requests.get(
+            "https://api-eu.dhl.com/track/shipments",
+            params={"trackingNumber": tracking_number},
+            headers={**HEADERS, "DHL-API-Key": api_key},
+            timeout=TIMEOUT,
+        )
+        if resp.status_code == 429:
+            result["status_detail"] = "DHL API: daglimiet bereikt (250/dag). Probeer het morgen opnieuw."
+            return result
+        if resp.status_code == 401:
+            result["status_detail"] = "DHL API: ongeldige API-sleutel. Controleer via developer.dhl.com."
+            return result
+        if resp.status_code == 404:
+            result["status"] = "pending"
+            result["status_detail"] = "Zending nog niet gevonden bij DHL"
+            return result
+        if resp.status_code != 200:
+            result["status_detail"] = f"DHL API HTTP {resp.status_code}"
+            return result
+
+        try:
+            data = resp.json()
+        except ValueError:
+            result["status_detail"] = "DHL API: geen geldig JSON antwoord"
+            return result
+
+        shipments = data.get("shipments", [])
+        if not shipments:
+            result["status_detail"] = "Zending niet gevonden bij DHL"
+            return result
+
+        s = shipments[0]
+        status_obj = s.get("status", {})
+        description = status_obj.get("description", "")
+        # DHL API returns statusCode at status level
+        status_code = status_obj.get("statusCode", "").lower().replace("_", "-")
+        events = s.get("events", [])
+
+        result["status"] = (
+            _DHL_STATUS_CODES.get(status_code)
+            or _normalize_dhl(description)
+        )
+        # Use most recent event description for detail if available
+        if events:
+            ev = events[0]
+            ev_desc = ev.get("description", description)
+            loc = ev.get("location", {}).get("address", {}).get("addressLocality", "")
+            result["status_detail"] = f"{ev_desc} — {loc}" if loc else ev_desc
+        else:
+            result["status_detail"] = description or "Geen statusdetail beschikbaar"
+
+    except Exception as exc:
+        _LOGGER.error("DHL API error for %s: %s", tracking_number, exc)
+        result["status_detail"] = str(exc)
+
+    return result
+
+
+def scrape_dhl(tracking_number: str, config: TrackerConfig | None = None) -> dict:
+    """Scrape DHL Express / eCommerce tracking.
+
+    Uses official DHL Developer API if api_key is configured,
+    falls back to demo-key (rate-limited: ~5 requests/day).
+    """
+    tracking_url = (
+        f"https://www.dhl.com/be-nl/home/tracking/tracking-parcel.html"
+        f"?submit=1&tracking-id={tracking_number}"
+    )
+    api_key = (config.dhl_api_key if config else "") or "demo-key"
+    return _scrape_dhl_api(tracking_number, "dhl", api_key, tracking_url)
+
+
+def scrape_dhl_de(tracking_number: str, config: TrackerConfig | None = None) -> dict:
+    """Scrape DHL Germany (DHL Paket).
+
+    With a DHL API key: uses official Unified API (also covers DHL Paket Germany).
+    Without a key: falls back to DHL.de internal website API (no rate limit,
+    but may break if DHL changes their website).
+    """
+    tracking_url = (
+        f"https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html"
+        f"?piececode={tracking_number}"
+    )
+
+    if config and config.dhl_api_key:
+        return _scrape_dhl_api(tracking_number, "dhl_de", config.dhl_api_key, tracking_url)
+
+    # ── Fallback: DHL.de internal website API (no key needed) ────────────────
+    result = {
+        "status": "unknown",
+        "status_detail": "",
+        "carrier": "dhl_de",
+        "tracking_number": tracking_number,
+        "tracking_url": tracking_url,
     }
     try:
         api_url = (
-            f"https://api-eu.dhl.com/track/shipments?trackingNumber={tracking_number}"
+            "https://www.dhl.de/int-verfolgen/search"
+            f"?lang=de&domain=de&type=p&fullResponse=true&investigationNumbers={tracking_number}"
         )
-        headers = {
-            **HEADERS,
-            "DHL-API-Key": "demo-key",
-        }
+        headers = {**HEADERS, "Accept": "application/json", "Referer": tracking_url}
         resp = requests.get(api_url, headers=headers, timeout=TIMEOUT)
         if resp.status_code == 200:
             try:
                 data = resp.json()
             except ValueError:
-                result["status_detail"] = "Invalid response from DHL API"
+                result["status_detail"] = "DHL Germany: geen geldig antwoord"
                 return result
-            shipments = data.get("shipments", [])
-            if shipments:
-                s = shipments[0]
-                events = s.get("events", [])
-                status_obj = s.get("status", {})
-                description = status_obj.get("description", "")
-                status_code = status_obj.get("status", "").lower().replace("_", "-")
-                result["status_detail"] = description
-                # Prefer the API's own status code over text normalization
-                result["status"] = (
-                    _DHL_STATUS_CODES.get(status_code)
-                    or _normalize_dhl(description)
+
+            sendungen = data.get("sendungen", [])
+            if sendungen:
+                s = sendungen[0]
+                verlauf = (
+                    s.get("sendungsdetails", {})
+                     .get("sendungsverlauf", {})
                 )
+                events = verlauf.get("events", [])
+                kurzstatus = verlauf.get("kurzstatus", "")
+                aktuell = verlauf.get("aktuellerStatus", "")
+
                 if events:
-                    result["status_detail"] = events[0].get("description", description)
+                    ev = events[0]
+                    status_text = (
+                        ev.get("status", "")
+                        or ev.get("beschreibung", "")
+                        or kurzstatus
+                    )
+                    result["status_detail"] = aktuell or status_text
+                    result["status"] = _normalize_dhl(status_text) or _normalize_dhl(aktuell)
+                elif kurzstatus or aktuell:
+                    result["status_detail"] = aktuell or kurzstatus
+                    result["status"] = _normalize_dhl(aktuell or kurzstatus)
+                else:
+                    result["status"] = "pending"
+                    result["status_detail"] = "Aangemeld bij DHL Germany"
             else:
-                result["status_detail"] = "Zending niet gevonden bij DHL"
+                result["status_detail"] = "Zending niet gevonden bij DHL Germany"
         else:
-            result["status_detail"] = f"DHL HTTP {resp.status_code}"
+            result["status_detail"] = f"DHL Germany HTTP {resp.status_code}"
     except Exception as exc:
-        _LOGGER.error("DHL scrape error: %s", exc)
-        result["status"] = "unknown"
+        _LOGGER.error("DHL Germany scrape error: %s", exc)
         result["status_detail"] = str(exc)
+
     return result
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UPS
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_ups(raw: str) -> str:
     raw = raw.lower()
@@ -388,7 +672,7 @@ def _normalize_ups(raw: str) -> str:
     return "unknown"
 
 
-def scrape_ups(tracking_number: str) -> dict:
+def scrape_ups(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape UPS tracking page."""
     result = {
         "status": "unknown",
@@ -430,6 +714,10 @@ def scrape_ups(tracking_number: str) -> dict:
     return result
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TNT / FedEx
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _normalize_tnt(raw: str) -> str:
     raw = raw.lower()
     if any(w in raw for w in [
@@ -464,7 +752,7 @@ def _normalize_tnt(raw: str) -> str:
     return "unknown"
 
 
-def scrape_tnt(tracking_number: str) -> dict:
+def scrape_tnt(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape TNT/FedEx tracking."""
     result = {
         "status": "unknown",
@@ -505,6 +793,10 @@ def scrape_tnt(tracking_number: str) -> dict:
     return result
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# DPD — pkge.net if key available, otherwise session-based scrape
+# ─────────────────────────────────────────────────────────────────────────────
+
 def _normalize_dpd(raw: str) -> str:
     raw = raw.lower()
     if any(w in raw for w in [
@@ -538,9 +830,19 @@ def _normalize_dpd(raw: str) -> str:
     return "unknown"
 
 
-def scrape_dpd(tracking_number: str) -> dict:
-    """Scrape DPD tracking via REST API with session-based cookies."""
+def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dict:
+    """Scrape DPD tracking.
+
+    With a pkge.net API key: uses pkge.net (reliable, 50 pakketten/maand gratis).
+    Without a key: attempts direct session-based scraping of DPD REST API
+    (may fail due to bot protection).
+    """
     tracking_url = f"https://tracking.dpd.de/parcelstatus?query={tracking_number}&language=nl"
+
+    if config and config.pkge_api_key:
+        return _scrape_pkgenet(tracking_number, "dpd", config.pkge_api_key, tracking_url)
+
+    # ── Fallback: session-based direct scrape ────────────────────────────────
     result = {
         "status": "unknown",
         "status_detail": "",
@@ -569,7 +871,10 @@ def scrape_dpd(tracking_number: str) -> dict:
             try:
                 data = resp.json()
             except ValueError:
-                result["status_detail"] = "DPD API geeft geen geldig antwoord (geen JSON)"
+                result["status_detail"] = (
+                    "DPD API: geen JSON ontvangen (bot-beveiliging). "
+                    "Stel een pkge.net API-sleutel in voor betrouwbare DPD-tracking."
+                )
                 return result
             parcel_lifecycle = data.get("parcellifecycleResponse", {})
             status_info = parcel_lifecycle.get("parcelLifeCycleData", {})
@@ -590,7 +895,10 @@ def scrape_dpd(tracking_number: str) -> dict:
             result["status"] = "pending"
             result["status_detail"] = "Pakket nog niet ingescand bij DPD"
         else:
-            result["status_detail"] = f"DPD HTTP {resp.status_code}"
+            result["status_detail"] = (
+                f"DPD HTTP {resp.status_code}. "
+                "Stel een pkge.net API-sleutel in voor betrouwbare DPD-tracking."
+            )
     except Exception as exc:
         _LOGGER.error("DPD scrape error: %s", exc)
         result["status"] = "unknown"
@@ -598,72 +906,9 @@ def scrape_dpd(tracking_number: str) -> dict:
     return result
 
 
-def scrape_dhl_de(tracking_number: str) -> dict:
-    """Scrape DHL Germany via their website's internal search API (no API key needed)."""
-    tracking_url = f"https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={tracking_number}"
-    result = {
-        "status": "unknown",
-        "status_detail": "",
-        "carrier": "dhl_de",
-        "tracking_number": tracking_number,
-        "tracking_url": tracking_url,
-    }
-    try:
-        # DHL Germany's own internal website API — no rate-limited demo-key needed
-        api_url = (
-            "https://www.dhl.de/int-verfolgen/search"
-            f"?lang=de&domain=de&type=p&fullResponse=true&investigationNumbers={tracking_number}"
-        )
-        headers = {
-            **HEADERS,
-            "Accept": "application/json",
-            "Referer": tracking_url,
-        }
-        resp = requests.get(api_url, headers=headers, timeout=TIMEOUT)
-        if resp.status_code == 200:
-            try:
-                data = resp.json()
-            except ValueError:
-                result["status_detail"] = "DHL Germany: geen geldig antwoord"
-                return result
-
-            sendungen = data.get("sendungen", [])
-            if sendungen:
-                s = sendungen[0]
-                verlauf = (
-                    s.get("sendungsdetails", {})
-                     .get("sendungsverlauf", {})
-                )
-                # Newest event is the current status
-                events = verlauf.get("events", [])
-                kurzstatus = verlauf.get("kurzstatus", "")
-                aktuell = verlauf.get("aktuellerStatus", "")
-
-                if events:
-                    ev = events[0]
-                    status_text = (
-                        ev.get("status", "")
-                        or ev.get("beschreibung", "")
-                        or kurzstatus
-                    )
-                    result["status_detail"] = aktuell or status_text
-                    result["status"] = _normalize_dhl(status_text) or _normalize_dhl(aktuell)
-                elif kurzstatus or aktuell:
-                    result["status_detail"] = aktuell or kurzstatus
-                    result["status"] = _normalize_dhl(aktuell or kurzstatus)
-                else:
-                    result["status"] = "pending"
-                    result["status_detail"] = "Aangemeld bij DHL Germany"
-            else:
-                result["status_detail"] = "Zending niet gevonden bij DHL Germany"
-        else:
-            result["status_detail"] = f"DHL Germany HTTP {resp.status_code}"
-    except Exception as exc:
-        _LOGGER.error("DHL Germany scrape error: %s", exc)
-        result["status_detail"] = str(exc)
-    result["tracking_url"] = tracking_url
-    return result
-
+# ─────────────────────────────────────────────────────────────────────────────
+# 4PX / China Post — pkge.net if key available, otherwise direct API
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_fourpx(raw: str) -> str:
     raw = raw.lower()
@@ -744,9 +989,18 @@ def _parse_fourpx_response(data: dict) -> tuple[str, str]:
     return "pending", "Aangemeld bij 4PX"
 
 
-def scrape_fourpx(tracking_number: str) -> dict:
-    """Scrape 4PX / China Post tracking."""
+def scrape_fourpx(tracking_number: str, config: TrackerConfig | None = None) -> dict:
+    """Scrape 4PX / China Post tracking.
+
+    With a pkge.net API key: uses pkge.net (reliable, 50 pakketten/maand gratis).
+    Without a key: attempts direct 4PX API (may be blocked by bot protection).
+    """
     tracking_url = f"https://track.4px.com/#/result/0/{tracking_number}"
+
+    if config and config.pkge_api_key:
+        return _scrape_pkgenet(tracking_number, "fourpx", config.pkge_api_key, tracking_url)
+
+    # ── Fallback: direct 4PX API ─────────────────────────────────────────────
     result = {
         "status": "unknown",
         "status_detail": "",
@@ -770,7 +1024,10 @@ def scrape_fourpx(tracking_number: str) -> dict:
             try:
                 data = resp.json()
             except ValueError:
-                result["status_detail"] = "4PX API: geen geldig JSON antwoord"
+                result["status_detail"] = (
+                    "4PX API: geen JSON ontvangen (bot-beveiliging). "
+                    "Stel een pkge.net API-sleutel in voor betrouwbare 4PX-tracking."
+                )
                 return result
             status, detail = _parse_fourpx_response(data)
             if status:
@@ -780,12 +1037,19 @@ def scrape_fourpx(tracking_number: str) -> dict:
                 result["status_detail"] = "4PX: geen trackingdata gevonden (mogelijk nog niet ingescand)"
                 result["status"] = "pending"
         else:
-            result["status_detail"] = f"4PX HTTP {resp.status_code}"
+            result["status_detail"] = (
+                f"4PX HTTP {resp.status_code}. "
+                "Stel een pkge.net API-sleutel in voor betrouwbare 4PX-tracking."
+            )
     except Exception as exc:
         _LOGGER.error("4PX scrape error: %s", exc)
         result["status_detail"] = str(exc)
     return result
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public API
+# ─────────────────────────────────────────────────────────────────────────────
 
 SCRAPER_MAP = {
     "bpost": scrape_bpost,
@@ -799,8 +1063,18 @@ SCRAPER_MAP = {
 }
 
 
-def get_tracking_info(tracking_number: str, carrier: str = "auto") -> dict:
-    """Main entry point: detect carrier if needed, then scrape."""
+def get_tracking_info(
+    tracking_number: str,
+    carrier: str = "auto",
+    config: TrackerConfig | None = None,
+) -> dict:
+    """Main entry point: detect carrier if needed, then scrape.
+
+    Args:
+        tracking_number: The parcel tracking number.
+        carrier: Carrier key or "auto" for auto-detection.
+        config: Optional API keys and settings passed to scrapers.
+    """
     if not tracking_number or not tracking_number.strip():
         return {"status": "unknown", "status_detail": "No tracking number", "carrier": carrier}
 
@@ -809,7 +1083,7 @@ def get_tracking_info(tracking_number: str, carrier: str = "auto") -> dict:
 
     scraper = SCRAPER_MAP.get(carrier)
     if scraper:
-        return scraper(tracking_number)
+        return scraper(tracking_number, config)
 
     return {
         "status": "unknown",

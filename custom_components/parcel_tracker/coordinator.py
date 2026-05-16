@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, MAX_PARCELS
-from .scrapers import get_tracking_info
+from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, MAX_PARCELS, CONF_DHL_API_KEY, CONF_PKGE_API_KEY
+from .scrapers import get_tracking_info, TrackerConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,8 +22,17 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.last_checked: datetime | None = None
 
+    def _get_config(self) -> TrackerConfig:
+        """Build a TrackerConfig from the current config entry options."""
+        options = self.entry.options or {}
+        return TrackerConfig(
+            dhl_api_key=options.get(CONF_DHL_API_KEY, ""),
+            pkge_api_key=options.get(CONF_PKGE_API_KEY, ""),
+        )
+
     async def _async_update_data(self) -> dict:
         slots = self.hass.data[DOMAIN][self.entry.entry_id]["slots"]
+        config = self._get_config()
         results = {}
         for i in range(1, MAX_PARCELS + 1):
             key = f"parcel_{i}"
@@ -40,7 +49,7 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
                 continue
             try:
                 info = await self.hass.async_add_executor_job(
-                    get_tracking_info, tn, carrier
+                    get_tracking_info, tn, carrier, config
                 )
             except Exception as exc:
                 _LOGGER.warning("Error fetching parcel %d (%s): %s", i, tn, exc)

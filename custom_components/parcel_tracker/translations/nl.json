@@ -3,7 +3,15 @@
     "step": {
       "user": {
         "title": "Parcel Tracker",
-        "description": "Klik op Bevestigen om te installeren. Beheer je pakketten via het zijbalk panel."
+        "description": "Voer hieronder je API-sleutels in voor betrouwbare tracking. Beide sleutels zijn gratis en optioneel — je kunt ze ook later toevoegen via de integratie-instellingen.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag.\n→ Registreer op [developer.dhl.com](https://developer.dhl.com), maak een app aan en kopieer de **Consumer Key**.\n\n**pkge.net API-sleutel** (DPD + 4PX / China Post) — Gratis, 50 pakketten/maand.\n→ Registreer op [business.pkge.net](https://business.pkge.net), ga naar **Company profile → API key**.",
+        "data": {
+          "dhl_api_key": "DHL API-sleutel",
+          "pkge_api_key": "pkge.net API-sleutel"
+        },
+        "data_description": {
+          "dhl_api_key": "developer.dhl.com → My Apps → Consumer Key",
+          "pkge_api_key": "business.pkge.net → Company profile → API key"
+        }
       }
     },
     "abort": {
@@ -13,12 +21,17 @@
   "options": {
     "step": {
       "init": {
-        "title": "Parcel Tracker",
-        "description": "Beheer je pakketten via het Parcel Tracker panel in de zijbalk."
+        "title": "Parcel Tracker — API-sleutels",
+        "description": "Pas hier je API-sleutels aan. Wijzigingen worden direct toegepast.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag.\n→ [developer.dhl.com](https://developer.dhl.com) → My Apps → Consumer Key\n\n**pkge.net API-sleutel** (DPD + 4PX / China Post) — Gratis, 50 pakketten/maand.\n→ [business.pkge.net](https://business.pkge.net) → Company profile → API key",
+        "data": {
+          "dhl_api_key": "DHL API-sleutel",
+          "pkge_api_key": "pkge.net API-sleutel"
+        },
+        "data_description": {
+          "dhl_api_key": "developer.dhl.com → My Apps → Consumer Key",
+          "pkge_api_key": "business.pkge.net → Company profile → API key"
+        }
       }
-    },
-    "abort": {
-      "use_panel": "Beheer je pakketten via het Parcel Tracker panel in de zijbalk."
     }
   }
 }
