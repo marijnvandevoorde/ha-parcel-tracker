@@ -27,12 +27,16 @@ Repository: https://github.com/wwoutt/ha-parcel-tracker
 
 ---
 
-## Werkafspraken
+## ⚠️ PRIORITEIT 1 — NOOIT PUSHEN ZONDER TOESTEMMING
 
-### Pushen naar GitHub
-- **Nooit pushen zonder expliciete toestemming** van de gebruiker
-- Altijd eerst vragen of de wijzigingen mogen worden geüpload
-- Na goedkeuring: commit + push + GitHub release aanmaken
+**NOOIT** `git push` of een GitHub release uitvoeren zonder dat de gebruiker expliciet "push" of "upload" zegt.
+- Commits lokaal aanmaken mag wel
+- Altijd melden wat er klaarstaat en wachten op groen licht
+- Dit geldt ook als de gebruiker eerder in het gesprek toestemming gaf — elke push heeft een nieuwe bevestiging nodig
+
+---
+
+## Werkafspraken
 
 ### Versiebeheer
 - Bij elke nieuwe functionaliteit of bugfix de versie ophogen in **beide**:
