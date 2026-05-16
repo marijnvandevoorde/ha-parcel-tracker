@@ -32,6 +32,10 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_PKGE_API_KEY): str,
                 }
             ),
+            description_placeholders={
+                "dhl_url": "developer.dhl.com",
+                "pkge_url": "business.pkge.net",
+            },
         )
 
     @staticmethod
@@ -70,4 +74,8 @@ class ParcelTrackerOptionsFlow(config_entries.OptionsFlow):
                     ): str,
                 }
             ),
+            description_placeholders={
+                "dhl_url": "developer.dhl.com",
+                "pkge_url": "business.pkge.net",
+            },
         )
