@@ -1,7 +1,7 @@
 """Constants for Parcel Tracker integration."""
 
 DOMAIN = "parcel_tracker"
-VERSION = "1.10.1"
+VERSION = "1.10.2"
 PLATFORM = "sensor"
 
 CONF_TRACKING_NUMBER = "tracking_number"
