@@ -4,7 +4,7 @@ A custom Home Assistant integration that lets you track parcels from multiple ca
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue)](https://www.home-assistant.io)
-[![Version](https://img.shields.io/badge/version-1.11.1-green)](https://github.com/wwoutt/ha-parcel-tracker/releases)
+[![Version](https://img.shields.io/badge/version-1.11.2-green)](https://github.com/wwoutt/ha-parcel-tracker/releases)
 
 ---
 

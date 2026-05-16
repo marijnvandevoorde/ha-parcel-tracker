@@ -38,7 +38,7 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return ParcelTrackerOptionsFlow(config_entry)
+        return ParcelTrackerOptionsFlow()
 
 
 class ParcelTrackerOptionsFlow(config_entries.OptionsFlow):
