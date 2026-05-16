@@ -50,6 +50,10 @@ const TRANSLATIONS = {
     deleted:          'Pakket verwijderd.',
     save_error:       'Opslaan mislukt. Probeer opnieuw.',
     load_error:       'Kon pakketdata niet laden. Controleer of de integratie actief is.',
+    refresh_error:    'Vernieuwen mislukt. Probeer opnieuw.',
+    check_logs:       'Controleer de HA-logs voor meer info',
+    just_now:         '< 1 min geleden',
+    min_ago:          'min geleden',
     status: {
       delivered:        'Bezorgd',
       in_transit:       'Onderweg',
@@ -89,6 +93,10 @@ const TRANSLATIONS = {
     deleted:          'Colis supprimé.',
     save_error:       'Échec de l\'enregistrement. Réessayez.',
     load_error:       'Impossible de charger les données. Vérifiez que l\'intégration est active.',
+    refresh_error:    'Échec de l\'actualisation. Réessayez.',
+    check_logs:       'Consultez les logs HA pour plus d\'informations',
+    just_now:         '< 1 min',
+    min_ago:          'min',
     status: {
       delivered:        'Livré',
       in_transit:       'En transit',
@@ -128,6 +136,10 @@ const TRANSLATIONS = {
     deleted:          'Parcel deleted.',
     save_error:       'Save failed. Please try again.',
     load_error:       'Could not load parcel data. Check that the integration is active.',
+    refresh_error:    'Refresh failed. Please try again.',
+    check_logs:       'Check the HA logs for more information',
+    just_now:         '< 1 min ago',
+    min_ago:          'min ago',
     status: {
       delivered:        'Delivered',
       in_transit:       'In transit',
@@ -261,7 +273,7 @@ class ParcelTrackerPanel extends HTMLElement {
     try {
       await this._hass.callWS({ type: 'parcel_tracker/refresh', entry_id: this._entryId });
     } catch (e) {
-      // ignore, _loadData will show any error
+      this._showToast('error', this._t.refresh_error);
     }
     await this._loadData();
     this._refreshing = false;
@@ -377,11 +389,11 @@ class ParcelTrackerPanel extends HTMLElement {
         <div class="tracking-num">${this._esc(p.tracking)}</div>
         <div class="carrier-label">
           ${this._esc(carrierLabel)}
-          ${p.tracking_url ? ` &middot; <a href="${this._esc(p.tracking_url)}" target="_blank">${t.track_link}</a>` : ''}
+          ${p.tracking_url && p.tracking_url.startsWith('https://') ? ` &middot; <a href="${this._esc(p.tracking_url)}" target="_blank">${t.track_link}</a>` : ''}
         </div>
         ${p.status_detail
             ? `<div class="detail${(p.status === 'unknown' || p.status === 'exception') ? ' detail-warn' : ''}">${this._esc(p.status_detail)}</div>`
-            : (p.status === 'unknown' ? `<div class="detail detail-warn">Controleer de HA-logs voor meer info</div>` : '')
+            : (p.status === 'unknown' ? `<div class="detail detail-warn">${t.check_logs}</div>` : '')
         }
         <div class="actions">
           <button class="btn-secondary btn-sm" data-action="edit" data-slot="${p.slot}">${t.edit}</button>
@@ -460,10 +472,11 @@ class ParcelTrackerPanel extends HTMLElement {
   }
 
   _formatTime(date) {
+    const t = this._t;
     const diffMs = Date.now() - date.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return '< 1 min ago';
-    if (diffMin < 60) return `${diffMin} min ago`;
+    if (diffMin < 1) return t.just_now;
+    if (diffMin < 60) return `${diffMin} ${t.min_ago}`;
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 

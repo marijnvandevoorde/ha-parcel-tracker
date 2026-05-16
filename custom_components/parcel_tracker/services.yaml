@@ -1,17 +1,17 @@
 add_parcel:
-  name: Pakket toevoegen
-  description: Voeg een pakket toe aan de volgende vrije slot.
+  name: Add parcel
+  description: Add a parcel to the next available slot.
   fields:
     tracking_number:
-      name: Trackingnummer
-      description: Het trackingnummer van het pakket.
+      name: Tracking number
+      description: The tracking number of the parcel.
       required: true
       example: "JD014600004860246190"
       selector:
         text:
     carrier:
-      name: Bezorgdienst
-      description: De bezorgdienst. Laat leeg voor automatische detectie.
+      name: Carrier
+      description: The carrier. Leave empty for automatic detection.
       required: false
       default: auto
       example: auto
@@ -23,11 +23,13 @@ add_parcel:
             - value: bpost
               label: bPost
             - value: dhl
-              label: "DHL (Internationaal)"
+              label: "DHL (International)"
             - value: dhl_de
               label: DHL Germany
             - value: dpd
               label: DPD
+            - value: fourpx
+              label: 4PX / China Post
             - value: tnt
               label: TNT / FedEx
             - value: ups
@@ -35,20 +37,20 @@ add_parcel:
             - value: postnl
               label: PostNL
     friendly_name:
-      name: Naam
-      description: Optionele naam voor het pakket.
+      name: Name
+      description: Optional display name for the parcel.
       required: false
-      example: "Bestelling bol.com"
+      example: "Amazon order"
       selector:
         text:
 
 remove_parcel:
-  name: Pakket verwijderen
-  description: Verwijder een pakket op basis van het trackingnummer.
+  name: Remove parcel
+  description: Remove a parcel by its tracking number.
   fields:
     tracking_number:
-      name: Trackingnummer
-      description: Het trackingnummer van het te verwijderen pakket.
+      name: Tracking number
+      description: The tracking number of the parcel to remove.
       required: true
       example: "JD014600004860246190"
       selector:

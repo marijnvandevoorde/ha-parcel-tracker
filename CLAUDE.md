@@ -27,12 +27,12 @@ Repository: https://github.com/wwoutt/ha-parcel-tracker
 
 ---
 
-## ⚠️ PRIORITEIT 1 — NOOIT PUSHEN ZONDER TOESTEMMING
+## ⚠️ PRIORITEIT 1 — NOOIT COMMITTEN OF PUSHEN ZONDER TOESTEMMING
 
-**NOOIT** `git push` of een GitHub release uitvoeren zonder dat de gebruiker expliciet "push" of "upload" zegt.
-- Commits lokaal aanmaken mag wel
-- Altijd melden wat er klaarstaat en wachten op groen licht
-- Dit geldt ook als de gebruiker eerder in het gesprek toestemming gaf — elke push heeft een nieuwe bevestiging nodig
+**NOOIT** `git add`, `git commit`, `git push` of een GitHub release uitvoeren zonder dat de gebruiker expliciet toestemming geeft.
+- Bestanden lokaal aanpassen mag wel
+- Na het aanpassen: melden wat er klaarstaat, dan wachten op "commit" of "push" van de gebruiker
+- Dit geldt ook als de gebruiker eerder in het gesprek toestemming gaf — elke commit/push heeft een nieuwe bevestiging nodig
 
 ---
 

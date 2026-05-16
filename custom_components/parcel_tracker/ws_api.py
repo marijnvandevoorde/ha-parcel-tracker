@@ -5,6 +5,8 @@ from homeassistant.core import HomeAssistant, callback
 import voluptuous as vol
 from .const import DOMAIN, MAX_PARCELS, CARRIERS
 
+_VALID_SLOTS = range(1, MAX_PARCELS + 1)
+
 
 def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_parcels)
@@ -23,7 +25,7 @@ def ws_list_parcels(hass: HomeAssistant, connection, msg: dict) -> None:
         coordinator = entry_data.get("coordinator")
         coord_data = coordinator.data if coordinator and coordinator.data else {}
         parcels = []
-        for i in range(1, MAX_PARCELS + 1):
+        for i in _VALID_SLOTS:
             slot = slots.get(i, {})
             status_data = coord_data.get(f"parcel_{i}", {})
             parcels.append({
@@ -47,10 +49,11 @@ def ws_list_parcels(hass: HomeAssistant, connection, msg: dict) -> None:
 @websocket_api.async_response
 async def ws_refresh(hass: HomeAssistant, connection, msg: dict) -> None:
     entry_id = msg["entry_id"]
-    if entry_id not in hass.data.get(DOMAIN, {}):
+    entry_data = hass.data.get(DOMAIN, {}).get(entry_id)
+    if not isinstance(entry_data, dict) or "coordinator" not in entry_data:
         connection.send_error(msg["id"], "not_found", "Entry not found")
         return
-    coordinator = hass.data[DOMAIN][entry_id].get("coordinator")
+    coordinator = entry_data.get("coordinator")
     if coordinator:
         await coordinator.async_request_refresh()
     connection.send_result(msg["id"], {"success": True})
@@ -67,20 +70,29 @@ async def ws_refresh(hass: HomeAssistant, connection, msg: dict) -> None:
 @websocket_api.async_response
 async def ws_set_parcel(hass: HomeAssistant, connection, msg: dict) -> None:
     entry_id = msg["entry_id"]
-    if entry_id not in hass.data.get(DOMAIN, {}):
+    entry_data = hass.data.get(DOMAIN, {}).get(entry_id)
+    if not isinstance(entry_data, dict) or "slots" not in entry_data:
         connection.send_error(msg["id"], "not_found", "Config entry not found")
         return
 
-    entry_data = hass.data[DOMAIN][entry_id]
     slot = msg["slot"]
-    entry_data["slots"][slot]["tracking"] = msg["tracking"]
-    entry_data["slots"][slot]["carrier"] = msg["carrier"]
+    if slot not in _VALID_SLOTS:
+        connection.send_error(msg["id"], "invalid_slot", f"Slot must be between 1 and {MAX_PARCELS}")
+        return
+
+    slots = entry_data["slots"]
+    if slot not in slots:
+        connection.send_error(msg["id"], "invalid_slot", "Slot does not exist")
+        return
+
+    slots[slot]["tracking"] = msg["tracking"].strip()
+    slots[slot]["carrier"] = msg["carrier"]
     if "friendly_name" in msg:
-        entry_data["slots"][slot]["friendly_name"] = msg["friendly_name"]
+        slots[slot]["friendly_name"] = msg["friendly_name"]
 
     store = entry_data.get("store")
     if store:
-        await store.async_save({str(i): s for i, s in entry_data["slots"].items()})
+        await store.async_save({str(i): s for i, s in slots.items()})
 
     coordinator = entry_data.get("coordinator")
     if coordinator:

@@ -28,7 +28,7 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
         for i in range(1, MAX_PARCELS + 1):
             key = f"parcel_{i}"
             slot = slots[i]
-            tn = slot["tracking"].strip()
+            tn = str(slot.get("tracking") or "").strip()
             carrier = slot["carrier"]
             friendly = slot["friendly_name"]
             if not tn:

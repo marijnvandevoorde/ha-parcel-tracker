@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Parcel Tracker",
+        "description": "Click Submit to install. Manage your parcels via the sidebar panel."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Parcel Tracker is already installed. Manage your parcels via the sidebar panel."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Parcel Tracker",
+        "description": "Manage your parcels via the Parcel Tracker panel in the sidebar."
+      }
+    },
+    "abort": {
+      "use_panel": "Manage your parcels via the Parcel Tracker panel in the sidebar."
+    }
+  }
+}

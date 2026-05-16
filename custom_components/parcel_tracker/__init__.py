@@ -1,5 +1,6 @@
 """Parcel Tracker integration for Home Assistant."""
 from __future__ import annotations
+import asyncio
 import logging
 from pathlib import Path
 import voluptuous as vol
@@ -54,10 +55,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     slots = {}
     for i in range(1, MAX_PARCELS + 1):
         saved = stored.get(str(i), {})
+        # Use explicit None checks so empty strings are preserved intentionally
+        tracking = saved["tracking"] if "tracking" in saved else config_data.get(f"tracking_number_{i}", "")
+        carrier = saved["carrier"] if "carrier" in saved else config_data.get(f"carrier_{i}", "auto")
+        friendly = saved["friendly_name"] if "friendly_name" in saved else config_data.get(f"friendly_name_{i}", f"Parcel {i}")
         slots[i] = {
-            "tracking": saved.get("tracking") or config_data.get(f"tracking_number_{i}", "") or "",
-            "carrier": saved.get("carrier") or config_data.get(f"carrier_{i}", "auto"),
-            "friendly_name": saved.get("friendly_name") or config_data.get(f"friendly_name_{i}", "") or f"Parcel {i}",
+            "tracking": str(tracking or ""),
+            "carrier": str(carrier or "auto"),
+            "friendly_name": str(friendly) if friendly else f"Parcel {i}",
         }
 
     coordinator = ParcelTrackerCoordinator(hass, entry)
@@ -66,10 +71,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
         "slots": slots,
         "store": store,
+        "lock": asyncio.Lock(),  # protects concurrent slot mutations
     }
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Run first refresh BEFORE setting up sensor platform so sensors see real data
     await coordinator.async_config_entry_first_refresh()
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
     # Register WebSocket API, panel and services once
@@ -104,25 +111,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             carrier = call.data.get("carrier", "auto")
             name = call.data.get("friendly_name", "").strip()
 
-            # Find the first entry_id with a free slot
             for eid, entry_data in hass.data[DOMAIN].items():
                 if not isinstance(entry_data, dict) or "slots" not in entry_data:
                     continue
-                slots = entry_data["slots"]
-                # Check if tracking number already exists
-                for slot in slots.values():
-                    if slot["tracking"] == tracking:
-                        _LOGGER.warning("Tracking number %s already exists", tracking)
-                        return
-                # Find first empty slot
-                for i in range(1, MAX_PARCELS + 1):
-                    if not slots[i]["tracking"]:
-                        slots[i]["tracking"] = tracking
-                        slots[i]["carrier"] = carrier
-                        slots[i]["friendly_name"] = name or f"Parcel {i}"
-                        await _save_slots(hass, eid)
-                        return
-                _LOGGER.warning("No free slots available to add parcel %s", tracking)
+                lock: asyncio.Lock = entry_data["lock"]
+                async with lock:
+                    slots = entry_data["slots"]
+                    # Check if tracking number already exists
+                    for slot in slots.values():
+                        if slot["tracking"] == tracking:
+                            _LOGGER.warning("Tracking number %s already exists", tracking)
+                            return
+                    # Find first empty slot
+                    for i in range(1, MAX_PARCELS + 1):
+                        if not slots[i]["tracking"]:
+                            slots[i]["tracking"] = tracking
+                            slots[i]["carrier"] = carrier
+                            slots[i]["friendly_name"] = name or f"Parcel {i}"
+                            await _save_slots(hass, eid)
+                            return
+                    _LOGGER.warning("No free slots available to add parcel %s", tracking)
                 return
 
         async def handle_remove_parcel(call: ServiceCall) -> None:
@@ -131,15 +139,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             for eid, entry_data in hass.data[DOMAIN].items():
                 if not isinstance(entry_data, dict) or "slots" not in entry_data:
                     continue
-                slots = entry_data["slots"]
-                for i in range(1, MAX_PARCELS + 1):
-                    if slots[i]["tracking"] == tracking:
-                        slots[i]["tracking"] = ""
-                        slots[i]["carrier"] = "auto"
-                        slots[i]["friendly_name"] = f"Parcel {i}"
-                        await _save_slots(hass, eid)
-                        return
-                _LOGGER.warning("Tracking number %s not found", tracking)
+                lock: asyncio.Lock = entry_data["lock"]
+                async with lock:
+                    slots = entry_data["slots"]
+                    for i in range(1, MAX_PARCELS + 1):
+                        if slots[i]["tracking"] == tracking:
+                            slots[i]["tracking"] = ""
+                            slots[i]["carrier"] = "auto"
+                            slots[i]["friendly_name"] = f"Parcel {i}"
+                            await _save_slots(hass, eid)
+                            return
+                    _LOGGER.warning("Tracking number %s not found", tracking)
+                return
 
         hass.services.async_register(
             DOMAIN, SERVICE_ADD_PARCEL, handle_add_parcel, schema=ADD_PARCEL_SCHEMA
@@ -156,12 +167,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
 
-    remaining = [k for k in hass.data[DOMAIN] if not k.startswith("_")]
-    if not remaining:
-        async_remove_panel(hass, PANEL_URL)
-        hass.services.async_remove(DOMAIN, SERVICE_ADD_PARCEL)
-        hass.services.async_remove(DOMAIN, SERVICE_REMOVE_PARCEL)
-        hass.data[DOMAIN].pop("_panel_registered", None)
+        remaining = [k for k in hass.data[DOMAIN] if not k.startswith("_")]
+        if not remaining:
+            async_remove_panel(hass, PANEL_URL)
+            hass.services.async_remove(DOMAIN, SERVICE_ADD_PARCEL)
+            hass.services.async_remove(DOMAIN, SERVICE_REMOVE_PARCEL)
+            hass.data[DOMAIN].pop("_panel_registered", None)
 
     return unload_ok
 

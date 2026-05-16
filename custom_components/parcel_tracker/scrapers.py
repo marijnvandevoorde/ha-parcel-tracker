@@ -20,33 +20,74 @@ HEADERS = {
 TIMEOUT = 15
 
 
-def detect_carrier(tracking_number: str) -> str:
-    """Auto-detect carrier from tracking number format."""
+def detect_carrier(tracking_number: str) -> str:  # noqa: PLR0911
+    """Auto-detect carrier from tracking number format.
+
+    Patterns ordered most-specific first to avoid false matches.
+    Sources: UPU S10, carrier developer docs, ship24, parceldetect.
+    """
     tn = tracking_number.strip().upper()
 
-    # bPost: 323xxxxxxxxx or JD0xxxxxxxxx
-    if re.match(r"^(323\d{9}|JD0\d{14})$", tn):
-        return "bpost"
-    # PostNL: 3S + alphanumeric, or JVGL, or RR..NL
-    if re.match(r"^(3S[A-Z0-9]{10,}|JVGL[A-Z0-9]+|[A-Z]{2}\d{9}NL)$", tn):
-        return "postnl"
-    # UPS: 1Z + 16 chars
+    # ── UPS ──────────────────────────────────────────────────────────────────
+    # 1Z + 16 alphanumeric — globally unique prefix, zero conflicts
     if re.match(r"^1Z[A-Z0-9]{16}$", tn):
         return "ups"
-    # DHL Germany: standard UPU format XX + digits + 2-letter country code (e.g. CD662144845DE)
-    if re.match(r"^[A-Z]{2}\d{8,9}[A-Z]{2}$", tn):
+
+    # ── bPost (Belgian Post) ─────────────────────────────────────────────────
+    # - JD0 + 14 digits: IPC cross-border barcode used by bPost
+    # - 323 + 9 digits: legacy 12-digit domestic label
+    # - 3232/3299 + 14-20 digits: modern 18/24-digit domestic barcodes
+    # - JJBEA + 22 alphanumeric: bPost certified mail format
+    # - [A-Z]{2} + 9 digits + BE: UPU S10 for items sent from Belgium
+    if re.match(
+        r"^(JD0\d{14}|323\d{9}|(3232|3299)\d{14,20}|JJBEA[A-Z0-9]{22}|[A-Z]{2}\d{9}BE)$",
+        tn,
+    ):
+        return "bpost"
+
+    # ── PostNL (Dutch Post) ──────────────────────────────────────────────────
+    # - [23]S + 11 or 13 alphanumeric: domestic consumer barcode (13 or 15 chars total)
+    # - [A-Z]{2} + 9 digits + NL: UPU S10 for items destined for the Netherlands
+    # Note: 3S prefix is also used by DHL Paket — PostNL wins in NL/BE context
+    if re.match(r"^([23]S[A-Z0-9]{11}|[23]S[A-Z0-9]{13}|[A-Z]{2}\d{9}NL)$", tn):
+        return "postnl"
+
+    # ── DHL Germany (DHL Paket .de) ──────────────────────────────────────────
+    # - JVGL + 6-14 alphanumeric: DHL Paket label barcode (NOT PostNL)
+    # - JJD + 12-18 digits: DHL Paket domestic GLS-style barcode
+    # - [A-Z]{2} + 8-9 digits + DE: UPU S10 ending in DE (e.g. CD662144845DE)
+    if re.match(r"^(JVGL[A-Z0-9]{6,14}|JJD\d{12,18}|[A-Z]{2}\d{8,9}DE)$", tn):
         return "dhl_de"
-    # DHL international: JD + 18 digits, or 10-12 digits, or ends with DHL
-    if re.match(r"^(JD\d{18}|\d{10,12}|[A-Z0-9]{10}DHL)$", tn):
+
+    # ── DHL Express / eCommerce ──────────────────────────────────────────────
+    # - JD + 18 digits: standard DHL Express international waybill
+    # - GM + 16-20 digits: DHL eCommerce GlobalMail cross-border
+    if re.match(r"^(JD\d{18}|GM\d{16,20})$", tn):
         return "dhl"
-    # DPD: 14-digit codes starting with 0, or %05B prefix
-    if re.match(r"^(0\d{13}|%05B\d+)$", tn):
-        return "dpd"
-    # 4PX / China Post: starts with 4PX, or alphanumeric ending in CN
-    if re.match(r"^(4PX[A-Z0-9]+|[A-Z]{2}\d{9,}CN)$", tn):
+
+    # ── 4PX / China Post / ePacket ───────────────────────────────────────────
+    # - 4PX + alphanumeric: proprietary 4PX Express format
+    # - [A-Z]{2} + exactly 9 digits + CN: UPU S10 from China (China Post, EMS,
+    #   ePacket, Yanwen, Cainiao all share this format)
+    if re.match(r"^(4PX[A-Z0-9]+|[A-Z]{2}\d{9}CN)$", tn):
         return "fourpx"
-    # TNT/FedEx: numeric 9, 12 or 15 digits
-    if re.match(r"^(\d{9}|\d{12}|\d{15})$", tn):
+
+    # ── DPD ──────────────────────────────────────────────────────────────────
+    # 14-digit codes starting with 0 (Belgium & Germany standard)
+    if re.match(r"^0\d{13}$", tn):
+        return "dpd"
+
+    # ── TNT / FedEx ──────────────────────────────────────────────────────────
+    # Most-specific FedEx formats first to avoid ambiguity:
+    # - 96 + 18-20 digits: FedEx Ground standard barcode prefix
+    # - 22 digits: FedEx Freight
+    # - 20 digits: FedEx SmartPost
+    # - 15 digits: FedEx Ground (without 96 prefix)
+    # - 12 digits: FedEx Express (also used by some DHL; lower confidence)
+    # - 8-9 digits: TNT Express Europe (legacy, still common in BE/NL)
+    if re.match(r"^96\d{18,20}$", tn):
+        return "tnt"
+    if re.match(r"^(\d{22}|\d{20}|\d{15}|\d{12}|\d{8,9})$", tn):
         return "tnt"
 
     return "unknown"
@@ -508,22 +549,22 @@ def scrape_dpd(tracking_number: str) -> dict:
         "tracking_url": tracking_url,
     }
     try:
-        session = requests.Session()
-        # Load main page first to pick up session cookies and bypass bot protection
-        session.get(
-            "https://tracking.dpd.de/",
-            headers={**HEADERS, "Accept": "text/html"},
-            timeout=TIMEOUT,
-        )
-        api_url = f"https://tracking.dpd.de/rest/plc/{tracking_number}"
-        api_headers = {
-            **HEADERS,
-            "Accept": "application/json, text/javascript, */*; q=0.01",
-            "X-Requested-With": "XMLHttpRequest",
-            "Referer": tracking_url,
-            "Origin": "https://tracking.dpd.de",
-        }
-        resp = session.get(api_url, headers=api_headers, timeout=TIMEOUT)
+        with requests.Session() as session:
+            # Load main page first to pick up session cookies and bypass bot protection
+            session.get(
+                "https://tracking.dpd.de/",
+                headers={**HEADERS, "Accept": "text/html"},
+                timeout=TIMEOUT,
+            )
+            api_url = f"https://tracking.dpd.de/rest/plc/{tracking_number}"
+            api_headers = {
+                **HEADERS,
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": tracking_url,
+                "Origin": "https://tracking.dpd.de",
+            }
+            resp = session.get(api_url, headers=api_headers, timeout=TIMEOUT)
         if resp.status_code == 200:
             try:
                 data = resp.json()
