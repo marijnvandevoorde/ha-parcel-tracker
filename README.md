@@ -33,6 +33,8 @@ Up to **10 parcels** can be tracked simultaneously. Status is refreshed automati
 | UPS | Yes | API |
 | TNT / FedEx | Yes | FedEx JSON API |
 | Colis Privé | No | HTML scrape (experimental) |
+| GLS | No | pkge.net API (key required) |
+| Mondial Relay | No | pkge.net API (key required) |
 
 ---
 

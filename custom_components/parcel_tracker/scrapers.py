@@ -148,8 +148,11 @@ _PKGE_STATUS_MAP: dict[int, str] = {
 # courierId -1 (auto-detect) regularly fails to attach ANY courier, leaving
 # the package stuck on "Pending" forever. Full list: GET /v1/couriers.
 # 1897 = DPD Belgium — adjust for other countries (124 = DPD Germany, ...).
+# Also useful as fallbacks: 56 = Bpost, 398 = Colis Prive.
 _PKGE_COURIER_IDS: dict[str, int] = {
     "dpd": 1897,
+    "gls": 111,          # GLS (EU-wide, gls-group.eu)
+    "mondialrelay": 228,  # Mondial Relay
 }
 
 
@@ -985,6 +988,49 @@ def _normalize_dpd(raw: str) -> str:
     return "unknown"
 
 
+def scrape_gls(tracking_number: str, config: TrackerConfig | None = None) -> dict:
+    """Track GLS parcels via pkge.net (GLS retired their open REST API).
+
+    Requires a pkge.net API key.
+    """
+    tracking_url = f"https://gls-group.eu/BE/nl/pakket-volgen?match={tracking_number}"
+    if config and config.pkge_api_key:
+        return _scrape_pkgenet(tracking_number, "gls", config.pkge_api_key, tracking_url)
+    return {
+        "status": "unknown",
+        "status_detail": "GLS vereist een pkge.net API-sleutel (business.pkge.net).",
+        "carrier": "gls",
+        "tracking_number": tracking_number,
+        "tracking_url": tracking_url,
+    }
+
+
+def scrape_mondialrelay(tracking_number: str, config: TrackerConfig | None = None) -> dict:
+    """Track Mondial Relay parcels via pkge.net.
+
+    Requires a pkge.net API key. The tracking page link includes the
+    destination postal code when configured.
+    """
+    postal = ((config.postal_code if config else "") or "").strip()
+    tracking_url = (
+        "https://www.mondialrelay.fr/suivi-de-colis?"
+        f"numeroExpedition={tracking_number}"
+    )
+    if postal:
+        tracking_url += f"&codePostal={postal}"
+    if config and config.pkge_api_key:
+        return _scrape_pkgenet(
+            tracking_number, "mondialrelay", config.pkge_api_key, tracking_url
+        )
+    return {
+        "status": "unknown",
+        "status_detail": "Mondial Relay vereist een pkge.net API-sleutel (business.pkge.net).",
+        "carrier": "mondialrelay",
+        "tracking_number": tracking_number,
+        "tracking_url": tracking_url,
+    }
+
+
 def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape DPD tracking.
 
@@ -1216,6 +1262,8 @@ SCRAPER_MAP = {
     "tnt": scrape_tnt,
     "fourpx": scrape_fourpx,
     "colisprive": scrape_colisprive,
+    "gls": scrape_gls,
+    "mondialrelay": scrape_mondialrelay,
 }
 
 

@@ -25,6 +25,8 @@ CARRIERS = {
     "ups": "UPS",
     "postnl": "PostNL",
     "colisprive": "Colis Privé (experimenteel)",
+    "gls": "GLS (via pkge.net)",
+    "mondialrelay": "Mondial Relay (via pkge.net)",
 }
 
 TRACKING_URLS = {
@@ -36,7 +38,9 @@ TRACKING_URLS = {
     "tnt": "https://www.fedex.com/fedextrack/?trknbr={tracking_number}",
     "ups": "https://www.ups.com/track?loc=nl_BE&tracknum={tracking_number}",
     "postnl": "https://postnl.nl/tracktrace/?B={tracking_number}&P=",
-    "colisprive": "https://colisprive.com/moncolis/pages/detailColis.aspx?numColis={tracking_number}&lang=fr",
+    "colisprive": "https://colisprive.com/moncolis/pages/detailColis.aspx?numColis={tracking_number}&lang=NL",
+    "gls": "https://gls-group.eu/BE/nl/pakket-volgen?match={tracking_number}",
+    "mondialrelay": "https://www.mondialrelay.fr/suivi-de-colis?numeroExpedition={tracking_number}",
 }
 
 STATUS_DELIVERED = "delivered"

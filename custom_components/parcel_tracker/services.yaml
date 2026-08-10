@@ -38,6 +38,10 @@ add_parcel:
               label: PostNL
             - value: colisprive
               label: "Colis Privé (experimental)"
+            - value: gls
+              label: "GLS (via pkge.net)"
+            - value: mondialrelay
+              label: "Mondial Relay (via pkge.net)"
     friendly_name:
       name: Name
       description: Optional display name for the parcel.

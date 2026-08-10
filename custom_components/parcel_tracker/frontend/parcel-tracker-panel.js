@@ -9,6 +9,8 @@ const CARRIERS = {
   ups: 'UPS',
   postnl: 'PostNL',
   colisprive: 'Colis Privé (experimenteel)',
+  gls: 'GLS (via pkge.net)',
+  mondialrelay: 'Mondial Relay (via pkge.net)',
 };
 
 const STATUS_COLORS = {
