@@ -3,7 +3,7 @@ from __future__ import annotations
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_BPOST_POSTAL_CODE, CONF_DHL_API_KEY, CONF_PKGE_API_KEY
+from .const import DOMAIN, CONF_POSTAL_CODE, CONF_DHL_API_KEY, CONF_PKGE_API_KEY
 
 DESCRIPTION_PLACEHOLDERS = {
     "dhl_url": "developer.dhl.com",
@@ -15,7 +15,7 @@ def _clean(user_input: dict) -> dict:
     return {
         CONF_DHL_API_KEY: (user_input.get(CONF_DHL_API_KEY) or "").strip(),
         CONF_PKGE_API_KEY: (user_input.get(CONF_PKGE_API_KEY) or "").strip(),
-        CONF_BPOST_POSTAL_CODE: (user_input.get(CONF_BPOST_POSTAL_CODE) or "").strip(),
+        CONF_POSTAL_CODE: (user_input.get(CONF_POSTAL_CODE) or "").strip(),
     }
 
 
@@ -38,7 +38,7 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Optional(CONF_DHL_API_KEY): str,
                     vol.Optional(CONF_PKGE_API_KEY): str,
-                    vol.Optional(CONF_BPOST_POSTAL_CODE): str,
+                    vol.Optional(CONF_POSTAL_CODE): str,
                 }
             ),
             description_placeholders=DESCRIPTION_PLACEHOLDERS,
@@ -78,10 +78,10 @@ class ParcelTrackerOptionsFlow(config_entries.OptionsFlow):
                         },
                     ): str,
                     vol.Optional(
-                        CONF_BPOST_POSTAL_CODE,
+                        CONF_POSTAL_CODE,
                         description={
-                            "suggested_value": current.get(CONF_BPOST_POSTAL_CODE)
-                            or data.get(CONF_BPOST_POSTAL_CODE, "")
+                            "suggested_value": current.get(CONF_POSTAL_CODE)
+                            or data.get(CONF_POSTAL_CODE, "")
                         },
                     ): str,
                 }

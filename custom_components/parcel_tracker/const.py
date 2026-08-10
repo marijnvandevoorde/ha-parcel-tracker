@@ -9,7 +9,7 @@ CONF_CARRIER = "carrier"
 CONF_FRIENDLY_NAME = "friendly_name"
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_PKGE_API_KEY = "pkge_api_key"
-CONF_BPOST_POSTAL_CODE = "bpost_postal_code"
+CONF_POSTAL_CODE = "postal_code"
 
 DEFAULT_SCAN_INTERVAL = 30  # minutes
 MAX_PARCELS = 10

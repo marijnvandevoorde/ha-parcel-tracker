@@ -30,7 +30,7 @@ class TrackerConfig:
     pkge_api_key: str = ""
     # bpost's API returns NO_DATA_FOUND for most parcels unless the
     # destination postal code is supplied alongside the tracking number.
-    bpost_postal_code: str = ""
+    postal_code: str = ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -308,7 +308,7 @@ def scrape_bpost(tracking_number: str, config: TrackerConfig | None = None) -> d
     try:
         # bpost returns NO_DATA_FOUND for most parcels unless the destination
         # postal code is supplied — query with it first, fall back without.
-        postal = (config.bpost_postal_code if config else "") or ""
+        postal = (config.postal_code if config else "") or ""
         urls = [
             "https://track.bpost.cloud/track/items?"
             f"itemIdentifier={tracking_number}&postalCode={postal}&lang=nl",
@@ -371,77 +371,101 @@ def scrape_bpost(tracking_number: str, config: TrackerConfig | None = None) -> d
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_colisprive(raw: str) -> str:
+    """Normalize a Colis Privé event label (French or Dutch) to a status."""
     raw = raw.lower()
     if any(w in raw for w in [
         "incident", "retour", "refus", "échec", "echec",
         "non livré", "non livre", "anomalie",
+        "mislukt", "niet bezorgd", "geweigerd", "probleem",
     ]):
         return "exception"
-    if any(w in raw for w in ["livré", "livre au destinataire", "remis"]):
+    if any(w in raw for w in [
+        "livré", "livre au destinataire", "remis",
+        "bezorgd", "geleverd", "afgeleverd", "overhandigd",
+    ]):
         return "delivered"
     if any(w in raw for w in [
         "en cours de livraison", "en tournée", "en tournee", "livraison en cours",
+        "in bezorging", "bezorgronde", "onderweg naar u",
     ]):
         return "out_for_delivery"
     if any(w in raw for w in [
         "transit", "achemin", "arrivé", "arrive sur", "tri",
         "expédié", "expedie", "pris en charge par",
+        "onderweg", "sorteer", "verzonden", "in behandeling", "aangenomen",
     ]):
         return "in_transit"
     if any(w in raw for w in [
         "enregistré", "enregistre", "annoncé", "annonce",
         "préparation", "preparation", "attente",
+        "aangekondigd", "geregistreerd", "aangemeld", "wachten",
     ]):
         return "pending"
     return "unknown"
 
 
+def _colisprive_detail_url(num_colis: str) -> str:
+    return (
+        "https://colisprive.com/moncolis/pages/detailColis.aspx?"
+        f"numColis={num_colis}&lang=NL"
+    )
+
+
 def scrape_colisprive(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape Colis Privé tracking via their public detail page.
 
-    Experimental: the page is an ASP.NET app; we warm up the session via the
-    tracking iframe, then parse the event table (.tableHistoriqueColis) of the
-    detail page. Newest event is expected first.
+    The page is an ASP.NET app; we warm up the session via the tracking
+    iframe, then parse the event table rows (tr.bandeauText) of the detail
+    page. Newest event comes first.
+
+    Colis Privé identifies a parcel by parcel number + destination postal
+    code concatenated (e.g. 780016616739 + 9090 → numColis=7800166167399090).
+    If the number as given is not found and a postal code is configured,
+    we retry with the postal code appended.
     """
-    tn = tracking_number.strip()
-    detail_url = (
-        f"https://colisprive.com/moncolis/pages/detailColis.aspx?numColis={tn}&lang=fr"
-    )
+    tn = tracking_number.strip().replace(" ", "")
+    postal = ((config.postal_code if config else "") or "").strip()
+    candidates = [tn]
+    if postal and not tn.endswith(postal):
+        candidates.append(tn + postal)
     result = {
         "status": "unknown",
         "status_detail": "",
         "carrier": "colisprive",
         "tracking_number": tn,
-        "tracking_url": detail_url,
+        "tracking_url": _colisprive_detail_url(tn),
     }
     try:
         session = requests.Session()
         session.headers.update(HEADERS)
         # Warm up ASP.NET session cookies via the public tracking iframe.
         session.get(
-            "https://colisprive.com/moncolis/colis-iframe.aspx?lang=fr",
+            "https://colisprive.com/moncolis/colis-iframe.aspx?lang=NL",
             timeout=TIMEOUT,
         )
-        resp = session.get(detail_url, timeout=TIMEOUT, allow_redirects=True)
-        # Unknown parcels get redirected away from the detail page.
-        if resp.status_code != 200 or "detailColis" not in resp.url:
-            result["status_detail"] = "Colis niet gevonden bij Colis Privé"
-            return result
-        soup = BeautifulSoup(resp.text, "html.parser")
-        events = []
-        for row in soup.select("tr.bandeauText"):
-            cells = row.find_all("td")
-            if len(cells) >= 2:
-                date = cells[0].get_text(" ", strip=True)
-                label = cells[1].get_text(" ", strip=True)
-                if label:
-                    events.append((date, label))
-        if events:
-            date, label = events[0]
-            result["status_detail"] = f"{label} — {date}" if date else label
-            result["status"] = _normalize_colisprive(label)
-        else:
-            result["status_detail"] = "Geen tracking-events gevonden (experimenteel)"
+        for num_colis in candidates:
+            detail_url = _colisprive_detail_url(num_colis)
+            resp = session.get(detail_url, timeout=TIMEOUT, allow_redirects=True)
+            # Unknown parcels get redirected away from the detail page.
+            if resp.status_code != 200 or "detailcolis" not in resp.url.lower():
+                result["status_detail"] = "Colis niet gevonden bij Colis Privé"
+                continue
+            soup = BeautifulSoup(resp.text, "html.parser")
+            events = []
+            for row in soup.select("tr.bandeauText"):
+                cells = row.find_all("td")
+                if len(cells) >= 2:
+                    date = cells[0].get_text(" ", strip=True)
+                    label = cells[1].get_text(" ", strip=True)
+                    if label:
+                        events.append((date, label))
+            if events:
+                date, label = events[0]
+                result["status_detail"] = f"{label} — {date}" if date else label
+                result["status"] = _normalize_colisprive(label)
+                result["tracking_url"] = detail_url
+                break
+            result["status_detail"] = "Geen tracking-events gevonden"
     except Exception as exc:
         _LOGGER.error("Colis Privé scrape error: %s", exc)
         result["status"] = "unknown"

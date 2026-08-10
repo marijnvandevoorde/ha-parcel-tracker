@@ -7,12 +7,12 @@
         "data": {
           "dhl_api_key": "DHL API-sleutel",
           "pkge_api_key": "pkge.net API-sleutel",
-          "bpost_postal_code": "bpost postcode"
+          "postal_code": "Postcode bestemming"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
           "pkge_api_key": "Company profile → API key",
-          "bpost_postal_code": "Postcode van de bestemming — bpost geeft zonder postcode geen trackinggegevens"
+          "postal_code": "Nodig voor bpost en Colis Privé om trackinggegevens op te halen (bv. 9090)"
         }
       }
     },
@@ -28,12 +28,12 @@
         "data": {
           "dhl_api_key": "DHL API-sleutel",
           "pkge_api_key": "pkge.net API-sleutel",
-          "bpost_postal_code": "bpost postcode"
+          "postal_code": "Postcode bestemming"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
           "pkge_api_key": "Company profile → API key",
-          "bpost_postal_code": "Postcode van de bestemming — bpost geeft zonder postcode geen trackinggegevens"
+          "postal_code": "Nodig voor bpost en Colis Privé om trackinggegevens op te halen (bv. 9090)"
         }
       }
     }

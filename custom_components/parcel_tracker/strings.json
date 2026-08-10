@@ -7,12 +7,12 @@
         "data": {
           "dhl_api_key": "DHL API Key",
           "pkge_api_key": "pkge.net API Key",
-          "bpost_postal_code": "bpost postal code"
+          "postal_code": "Destination postal code"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
           "pkge_api_key": "Company profile → API key",
-          "bpost_postal_code": "Destination postal code — bpost needs it to return tracking data"
+          "postal_code": "Needed by bpost and Colis Privé to return tracking data (e.g. 9090)"
         }
       }
     },
@@ -28,12 +28,12 @@
         "data": {
           "dhl_api_key": "DHL API Key",
           "pkge_api_key": "pkge.net API Key",
-          "bpost_postal_code": "bpost postal code"
+          "postal_code": "Destination postal code"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
           "pkge_api_key": "Company profile → API key",
-          "bpost_postal_code": "Destination postal code — bpost needs it to return tracking data"
+          "postal_code": "Needed by bpost and Colis Privé to return tracking data (e.g. 9090)"
         }
       }
     }

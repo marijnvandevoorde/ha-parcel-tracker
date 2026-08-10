@@ -9,7 +9,7 @@ from .const import (
     DOMAIN,
     DEFAULT_SCAN_INTERVAL,
     MAX_PARCELS,
-    CONF_BPOST_POSTAL_CODE,
+    CONF_POSTAL_CODE,
     CONF_DHL_API_KEY,
     CONF_PKGE_API_KEY,
 )
@@ -40,8 +40,8 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
         return TrackerConfig(
             dhl_api_key=options.get(CONF_DHL_API_KEY) or data.get(CONF_DHL_API_KEY, ""),
             pkge_api_key=options.get(CONF_PKGE_API_KEY) or data.get(CONF_PKGE_API_KEY, ""),
-            bpost_postal_code=options.get(CONF_BPOST_POSTAL_CODE)
-            or data.get(CONF_BPOST_POSTAL_CODE, ""),
+            postal_code=options.get(CONF_POSTAL_CODE)
+            or data.get(CONF_POSTAL_CODE, ""),
         )
 
     async def _async_update_data(self) -> dict:
