@@ -100,7 +100,12 @@ class ParcelSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        return self._data.get("status", "empty") not in ("empty", "unknown")
+        # Stay available as long as the slot holds a parcel — an "unknown"
+        # status (carrier returned no data yet) must not drop the entity's
+        # attributes, or the tracking_url link disappears from cards.
+        return bool(self._data.get("tracking_number")) and self._data.get(
+            "status", "empty"
+        ) != "empty"
 
     @property
     def extra_state_attributes(self) -> dict:
