@@ -1038,7 +1038,11 @@ def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dic
     Without a key: attempts direct session-based scraping of DPD REST API
     (may fail due to bot protection).
     """
-    tracking_url = f"https://tracking.dpd.de/parcelstatus?query={tracking_number}&language=nl"
+    # DPD Belgium's public tracking page (tracking.dpd.de is Germany-only)
+    tracking_url = (
+        "https://www.dpdgroup.com/be/mydpd/my-parcels/track?"
+        f"lang=nl&parcelNumber={tracking_number}"
+    )
 
     if config and config.pkge_api_key:
         return _scrape_pkgenet(tracking_number, "dpd", config.pkge_api_key, tracking_url)

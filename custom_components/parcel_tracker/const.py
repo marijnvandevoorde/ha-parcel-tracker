@@ -33,7 +33,7 @@ TRACKING_URLS = {
     "bpost": "https://track.bpost.cloud/btr/web/#/search?itemCode={tracking_number}&lang=nl",
     "dhl": "https://www.dhl.com/be-nl/home/tracking/tracking-parcel.html?submit=1&tracking-id={tracking_number}",
     "dhl_de": "https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={tracking_number}",
-    "dpd": "https://tracking.dpd.de/parcelstatus?query={tracking_number}&language=nl",
+    "dpd": "https://www.dpdgroup.com/be/mydpd/my-parcels/track?lang=nl&parcelNumber={tracking_number}",
     "fourpx": "https://track.4px.com/#/result/0/{tracking_number}",
     "tnt": "https://www.fedex.com/fedextrack/?trknbr={tracking_number}",
     "ups": "https://www.ups.com/track?loc=nl_BE&tracknum={tracking_number}",
