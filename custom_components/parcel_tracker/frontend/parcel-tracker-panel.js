@@ -8,6 +8,7 @@ const CARRIERS = {
   tnt: 'TNT / FedEx',
   ups: 'UPS',
   postnl: 'PostNL',
+  colisprive: 'Colis Privé (experimenteel)',
 };
 
 const STATUS_COLORS = {

@@ -6,11 +6,13 @@
         "description": "Voer hieronder je API-sleutels in voor betrouwbare tracking. Beide zijn gratis en optioneel — je kunt ze ook later toevoegen via de integratie-instellingen.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag. Registreer op [{dhl_url}]({dhl_url}), maak een app aan en kopieer de **Consumer Key**.\n\n**pkge.net API-sleutel** (DPD + 4PX / China Post) — Gratis, 50 pakketten/maand. Registreer op [{pkge_url}]({pkge_url}), ga naar **Company profile → API key**.",
         "data": {
           "dhl_api_key": "DHL API-sleutel",
-          "pkge_api_key": "pkge.net API-sleutel"
+          "pkge_api_key": "pkge.net API-sleutel",
+          "bpost_postal_code": "bpost postcode"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
-          "pkge_api_key": "Company profile → API key"
+          "pkge_api_key": "Company profile → API key",
+          "bpost_postal_code": "Postcode van de bestemming — bpost geeft zonder postcode geen trackinggegevens"
         }
       }
     },
@@ -25,11 +27,13 @@
         "description": "Pas hier je API-sleutels aan. Wijzigingen worden direct toegepast.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag. [{dhl_url}]({dhl_url}) → My Apps → Consumer Key\n\n**pkge.net API-sleutel** (DPD + 4PX / China Post) — Gratis, 50 pakketten/maand. [{pkge_url}]({pkge_url}) → Company profile → API key",
         "data": {
           "dhl_api_key": "DHL API-sleutel",
-          "pkge_api_key": "pkge.net API-sleutel"
+          "pkge_api_key": "pkge.net API-sleutel",
+          "bpost_postal_code": "bpost postcode"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
-          "pkge_api_key": "Company profile → API key"
+          "pkge_api_key": "Company profile → API key",
+          "bpost_postal_code": "Postcode van de bestemming — bpost geeft zonder postcode geen trackinggegevens"
         }
       }
     }

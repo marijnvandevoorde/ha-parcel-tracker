@@ -3,7 +3,20 @@ from __future__ import annotations
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_DHL_API_KEY, CONF_PKGE_API_KEY
+from .const import DOMAIN, CONF_BPOST_POSTAL_CODE, CONF_DHL_API_KEY, CONF_PKGE_API_KEY
+
+DESCRIPTION_PLACEHOLDERS = {
+    "dhl_url": "developer.dhl.com",
+    "pkge_url": "business.pkge.net",
+}
+
+
+def _clean(user_input: dict) -> dict:
+    return {
+        CONF_DHL_API_KEY: (user_input.get(CONF_DHL_API_KEY) or "").strip(),
+        CONF_PKGE_API_KEY: (user_input.get(CONF_PKGE_API_KEY) or "").strip(),
+        CONF_BPOST_POSTAL_CODE: (user_input.get(CONF_BPOST_POSTAL_CODE) or "").strip(),
+    }
 
 
 class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -14,12 +27,10 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
-            # Store API keys in data (options= is not supported in config flow)
-            data = {
-                CONF_DHL_API_KEY: (user_input.get(CONF_DHL_API_KEY) or "").strip(),
-                CONF_PKGE_API_KEY: (user_input.get(CONF_PKGE_API_KEY) or "").strip(),
-            }
-            return self.async_create_entry(title="Parcel Tracker", data=data)
+            # Store settings in data (options= is not supported in config flow)
+            return self.async_create_entry(
+                title="Parcel Tracker", data=_clean(user_input)
+            )
 
         return self.async_show_form(
             step_id="user",
@@ -27,12 +38,10 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Optional(CONF_DHL_API_KEY): str,
                     vol.Optional(CONF_PKGE_API_KEY): str,
+                    vol.Optional(CONF_BPOST_POSTAL_CODE): str,
                 }
             ),
-            description_placeholders={
-                "dhl_url": "developer.dhl.com",
-                "pkge_url": "business.pkge.net",
-            },
+            description_placeholders=DESCRIPTION_PLACEHOLDERS,
         )
 
     @staticmethod
@@ -42,17 +51,14 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(config_entries.OptionsFlow):
-    """Options flow for updating API keys after installation."""
+    """Options flow for updating settings after installation."""
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
-            cleaned = {
-                CONF_DHL_API_KEY: (user_input.get(CONF_DHL_API_KEY) or "").strip(),
-                CONF_PKGE_API_KEY: (user_input.get(CONF_PKGE_API_KEY) or "").strip(),
-            }
-            return self.async_create_entry(title="", data=cleaned)
+            return self.async_create_entry(title="", data=_clean(user_input))
 
         current = self.config_entry.options
+        data = self.config_entry.data
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -60,19 +66,25 @@ class ParcelTrackerOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_DHL_API_KEY,
                         description={
-                            "suggested_value": current.get(CONF_DHL_API_KEY, "")
+                            "suggested_value": current.get(CONF_DHL_API_KEY)
+                            or data.get(CONF_DHL_API_KEY, "")
                         },
                     ): str,
                     vol.Optional(
                         CONF_PKGE_API_KEY,
                         description={
-                            "suggested_value": current.get(CONF_PKGE_API_KEY, "")
+                            "suggested_value": current.get(CONF_PKGE_API_KEY)
+                            or data.get(CONF_PKGE_API_KEY, "")
+                        },
+                    ): str,
+                    vol.Optional(
+                        CONF_BPOST_POSTAL_CODE,
+                        description={
+                            "suggested_value": current.get(CONF_BPOST_POSTAL_CODE)
+                            or data.get(CONF_BPOST_POSTAL_CODE, "")
                         },
                     ): str,
                 }
             ),
-            description_placeholders={
-                "dhl_url": "developer.dhl.com",
-                "pkge_url": "business.pkge.net",
-            },
+            description_placeholders=DESCRIPTION_PLACEHOLDERS,
         )

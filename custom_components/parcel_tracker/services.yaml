@@ -36,6 +36,8 @@ add_parcel:
               label: UPS
             - value: postnl
               label: PostNL
+            - value: colisprive
+              label: "Colis Privé (experimental)"
     friendly_name:
       name: Name
       description: Optional display name for the parcel.

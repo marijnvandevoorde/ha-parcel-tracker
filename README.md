@@ -2,9 +2,14 @@
 
 A custom Home Assistant integration that lets you track parcels from multiple carriers directly in your smart home. No external apps, no manual checking — parcel status appears automatically as sensor entities and can be used in automations, notifications, and dashboards.
 
+> **Fork notice** — this is a fork of [wwoutt/ha-parcel-tracker](https://github.com/wwoutt/ha-parcel-tracker) that adds:
+> - **bpost fix**: the bpost API needs the destination postal code (configurable in the integration options) and returns event descriptions under `key.NL/EN.description` — without these, bpost parcels showed `unknown`/not found
+> - **Colis Privé** support (experimental, HTML scrape of the public detail page)
+> - Planned: GLS (their open API now requires registered access), Mondial Relay
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue)](https://www.home-assistant.io)
-[![Version](https://img.shields.io/badge/version-1.11.2-green)](https://github.com/wwoutt/ha-parcel-tracker/releases)
+[![Version](https://img.shields.io/badge/version-1.12.0-green)](https://github.com/marijnvandevoorde/ha-parcel-tracker/releases)
 
 ---
 
@@ -20,13 +25,14 @@ Up to **10 parcels** can be tracked simultaneously. Status is refreshed automati
 
 | Carrier | Auto-detect | Method |
 |---------|------------|--------|
-| bPost | Yes | Official API |
+| bPost | Yes | Official API (set your postal code in the integration options) |
 | PostNL | Yes | Official API |
 | DHL (International) | Yes | API + HTML fallback |
 | DHL Germany | No | API + HTML fallback |
 | DPD | Yes | REST API |
 | UPS | Yes | API |
 | TNT / FedEx | Yes | FedEx JSON API |
+| Colis Privé | No | HTML scrape (experimental) |
 
 ---
 

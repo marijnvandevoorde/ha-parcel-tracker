@@ -5,7 +5,14 @@ from datetime import datetime, timedelta, timezone
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, MAX_PARCELS, CONF_DHL_API_KEY, CONF_PKGE_API_KEY
+from .const import (
+    DOMAIN,
+    DEFAULT_SCAN_INTERVAL,
+    MAX_PARCELS,
+    CONF_BPOST_POSTAL_CODE,
+    CONF_DHL_API_KEY,
+    CONF_PKGE_API_KEY,
+)
 from .scrapers import get_tracking_info, TrackerConfig
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,6 +40,8 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
         return TrackerConfig(
             dhl_api_key=options.get(CONF_DHL_API_KEY) or data.get(CONF_DHL_API_KEY, ""),
             pkge_api_key=options.get(CONF_PKGE_API_KEY) or data.get(CONF_PKGE_API_KEY, ""),
+            bpost_postal_code=options.get(CONF_BPOST_POSTAL_CODE)
+            or data.get(CONF_BPOST_POSTAL_CODE, ""),
         )
 
     async def _async_update_data(self) -> dict:

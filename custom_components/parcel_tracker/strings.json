@@ -6,11 +6,13 @@
         "description": "Enter your API keys below to enable reliable tracking. Both are free and optional — you can also add them later via the integration settings.\n\n**DHL API Key** (DHL Express + DHL Germany) — Free, 250 calls/day. Register at [{dhl_url}]({dhl_url}), create an app and copy the **Consumer Key**.\n\n**pkge.net API Key** (DPD + 4PX / China Post) — Free, 50 parcels/month. Register at [{pkge_url}]({pkge_url}), go to **Company profile → API key**.",
         "data": {
           "dhl_api_key": "DHL API Key",
-          "pkge_api_key": "pkge.net API Key"
+          "pkge_api_key": "pkge.net API Key",
+          "bpost_postal_code": "bpost postal code"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
-          "pkge_api_key": "Company profile → API key"
+          "pkge_api_key": "Company profile → API key",
+          "bpost_postal_code": "Destination postal code — bpost needs it to return tracking data"
         }
       }
     },
@@ -25,11 +27,13 @@
         "description": "Update your API keys here. Changes take effect immediately.\n\n**DHL API Key** (DHL Express + DHL Germany) — Free, 250 calls/day. [{dhl_url}]({dhl_url}) → My Apps → Consumer Key\n\n**pkge.net API Key** (DPD + 4PX / China Post) — Free, 50 parcels/month. [{pkge_url}]({pkge_url}) → Company profile → API key",
         "data": {
           "dhl_api_key": "DHL API Key",
-          "pkge_api_key": "pkge.net API Key"
+          "pkge_api_key": "pkge.net API Key",
+          "bpost_postal_code": "bpost postal code"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
-          "pkge_api_key": "Company profile → API key"
+          "pkge_api_key": "Company profile → API key",
+          "bpost_postal_code": "Destination postal code — bpost needs it to return tracking data"
         }
       }
     }
