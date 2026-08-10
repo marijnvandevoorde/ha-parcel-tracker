@@ -144,6 +144,14 @@ _PKGE_STATUS_MAP: dict[int, str] = {
     9: "in_transit", # End of tracked route
 }
 
+# pkge.net courier ids to register packages with, per carrier key.
+# courierId -1 (auto-detect) regularly fails to attach ANY courier, leaving
+# the package stuck on "Pending" forever. Full list: GET /v1/couriers.
+# 1897 = DPD Belgium — adjust for other countries (124 = DPD Germany, ...).
+_PKGE_COURIER_IDS: dict[str, int] = {
+    "dpd": 1897,
+}
+
 
 def _scrape_pkgenet(
     tracking_number: str,
@@ -181,7 +189,10 @@ def _scrape_pkgenet(
             # Not registered yet — add it (POST)
             add_resp = requests.post(
                 get_url,
-                params={"trackNumber": tracking_number, "courierId": -1},
+                params={
+                    "trackNumber": tracking_number,
+                    "courierId": _PKGE_COURIER_IDS.get(carrier, -1),
+                },
                 headers=pkge_headers,
                 timeout=TIMEOUT,
             )
