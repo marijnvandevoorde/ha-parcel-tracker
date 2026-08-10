@@ -309,17 +309,25 @@ def _normalize_bpost(raw: str) -> str:
 
 def scrape_bpost(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape bPost tracking via their API endpoint."""
+    # The web tracker needs the postal code just like the API does — without
+    # it the tracking page shows nothing for most parcels.
+    postal = ((config.postal_code if config else "") or "").strip()
+    tracking_url = (
+        "https://track.bpost.cloud/btr/web/#/search?"
+        f"lang=nl&itemCode={tracking_number}"
+    )
+    if postal:
+        tracking_url += f"&postalCode={postal}"
     result = {
         "status": "unknown",
         "status_detail": "",
         "carrier": "bpost",
         "tracking_number": tracking_number,
-        "tracking_url": f"https://track.bpost.cloud/btr/web/#/search?itemCode={tracking_number}&lang=nl",
+        "tracking_url": tracking_url,
     }
     try:
         # bpost returns NO_DATA_FOUND for most parcels unless the destination
         # postal code is supplied — query with it first, fall back without.
-        postal = (config.postal_code if config else "") or ""
         urls = [
             "https://track.bpost.cloud/track/items?"
             f"itemIdentifier={tracking_number}&postalCode={postal}&lang=nl",
