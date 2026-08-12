@@ -291,39 +291,62 @@ def _scrape_17track(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_bpost(raw: str) -> str:
+    """Map a bPost event description (NL/FR/EN/DE) onto our status set.
+
+    Order matters: exceptions first so a negated delivery ("niet geleverd")
+    can't be read as success, then out-for-delivery before delivered because
+    the French wording overlaps ("en cours de distribution" vs "distribué").
+    """
     raw = raw.lower()
     if any(w in raw for w in [
-        "afgeleverd", "delivered", "overhandigd",
-        "livré", "livre", "remis", "zugestellt",
+        "probleem", "exception", "fout", "onbestelbaar",
+        "niet geleverd", "niet afgeleverd", "niet bezorgd", "niemand aanwezig",
+        "terug naar de afzender", "geweigerd",
+        "incident", "échec", "echeç", "retourné", "retourne",
+        "non distribué", "non distribue", "refusé", "refuse",
+        "fehler", "nicht zustellbar", "rückläufer", "verweigert",
     ]):
-        return "delivered"
+        return "exception"
     if any(w in raw for w in [
         "onderweg naar", "out for delivery", "bij de bode", "bezorgd wordt",
-        "en cours de livraison", "en livraison", "in zustellung",
+        # "Zending onderweg voor levering" / "Item in distribution phase" —
+        # the parcel is on the round, not merely in the network
+        "onderweg voor levering", "in distribution", "distribution phase",
+        # Pick-up point: waiting for the recipient to collect it
+        "beschikbaar in", "ready for pick", "available in",
+        "en cours de livraison", "en livraison",
+        "en cours de distribution", "phase de distribution",
+        "disponible dans", "in zustellung", "zur abholung bereit",
     ]):
         return "out_for_delivery"
     if any(w in raw for w in [
+        # bPost NL says "Zending geleverd", not "afgeleverd" — match the
+        # shorter stem so both spellings land here
+        "geleverd", "delivered", "overhandigd", "afgehaald in",
+        "livré", "livre", "remis", "distribué", "distribue",
+        "zugestellt", "abgeholt in",
+    ]):
+        return "delivered"
+    if any(w in raw for w in [
         "in transit", "onderweg", "gesorteerd", "verwerkt", "aangeboden",
+        "sorted", "processed",
         # "Zending wordt voorbereid door de postbode" — morning of delivery,
         # postman has the parcel but the round hasn't started yet
-        "voorbereid door de postbode",
+        "voorbereid door de postbode", "prepared by the postman",
         "en transit", "en cours", "acheminé", "achemine",
         "préparé par le facteur", "prepare par le facteur",
         "unterwegs", "sortiert", "weitergeleitet",
+        "vom zusteller vorbereitet",
     ]):
         return "in_transit"
     if any(w in raw for w in [
         "aangemeld", "registered", "ontvangen", "order",
-        "enregistré", "enregistre", "pris en charge",
-        "angemeldet", "abgeholt",
+        # "Informatie over de zending ontvangen van de afzender"
+        "voorbereiding", "preparation of the shipment",
+        "enregistré", "enregistre", "pris en charge", "préparation",
+        "angemeldet", "abgeholt", "vorbereitung",
     ]):
         return "pending"
-    if any(w in raw for w in [
-        "probleem", "exception", "fout", "onbestelbaar",
-        "incident", "échec", "echeç", "retourné", "retourne",
-        "fehler", "nicht zustellbar", "rückläufer",
-    ]):
-        return "exception"
     return "unknown"
 
 
