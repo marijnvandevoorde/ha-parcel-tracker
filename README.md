@@ -1,3 +1,5 @@
+<img src="custom_components/parcel_tracker/brand/icon.svg" width="96" align="left" hspace="16" vspace="4" alt="">
+
 # Parcel Tracker — Home Assistant Custom Integration
 
 A custom Home Assistant integration that lets you track parcels from multiple carriers directly in your smart home. No external apps, no manual checking — parcel status appears automatically as sensor entities and can be used in automations, notifications, and dashboards.
@@ -9,7 +11,7 @@ A custom Home Assistant integration that lets you track parcels from multiple ca
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![HA Version](https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue)](https://www.home-assistant.io)
-[![Version](https://img.shields.io/badge/version-1.12.0-green)](https://github.com/marijnvandevoorde/ha-parcel-tracker/releases)
+[![Version](https://img.shields.io/badge/version-1.14.0-green)](https://github.com/marijnvandevoorde/ha-parcel-tracker/releases)
 
 ---
 

@@ -155,8 +155,40 @@ const TRANSLATIONS = {
   },
 };
 
+// Brand mark — same artwork as brand/icon.svg, inlined so the panel needs no
+// extra request and stays crisp at any size / in both themes.
+const LOGO = `
+<svg class="logo" viewBox="0 0 512 512" role="img" aria-label="Parcel Tracker">
+  <defs>
+    <linearGradient id="ptBg" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#2B4C86"/><stop offset="1" stop-color="#141E38"/>
+    </linearGradient>
+    <linearGradient id="ptTop" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFE7BC"/><stop offset="1" stop-color="#FFCE8A"/>
+    </linearGradient>
+    <linearGradient id="ptLeft" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F5B96A"/><stop offset="1" stop-color="#E8A24E"/>
+    </linearGradient>
+    <linearGradient id="ptRight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D48F3E"/><stop offset="1" stop-color="#B9752C"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#ptBg)"/>
+  <path d="M 86 344 C 96 196 246 118 424 168" fill="none" stroke="#5FE3B8"
+        stroke-width="20" stroke-linecap="round" stroke-dasharray="4 46"/>
+  <path d="M 146 236 L 256 296 L 256 418 L 146 354 Z" fill="url(#ptLeft)"/>
+  <path d="M 366 236 L 256 296 L 256 418 L 366 354 Z" fill="url(#ptRight)"/>
+  <path d="M 256 176 L 366 236 L 256 296 L 146 236 Z" fill="url(#ptTop)"/>
+  <g fill="#FFFFFF" opacity="0.34">
+    <path d="M 176 252.4 L 226 279.6 L 336 219.6 L 286 192.4 Z"/>
+    <path d="M 176 252.4 L 226 279.6 L 226 397.6 L 176 370.4 Z"/>
+  </g>
+  <g transform="translate(400 148)"><circle r="42" fill="#5FE3B8"/><circle r="15" fill="#14213D"/></g>
+</svg>`;
+
 const CSS = `
   :host { display: block; }
+  .logo { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 7px; }
   .container { max-width: 800px; margin: 0 auto; padding: 16px; }
   h1 {
     font-size: 1.5rem; font-weight: 400;
@@ -337,14 +369,14 @@ class ParcelTrackerPanel extends HTMLElement {
   _renderBody() {
     const t = this._t;
     if (this._loading) {
-      return `<h1>📦 Parcel Tracker</h1><div class="loading">${t.loading}</div>`;
+      return `<h1>${LOGO}Parcel Tracker</h1><div class="loading">${t.loading}</div>`;
     }
     const active = this._parcels.filter(p => p.tracking);
     const nextEmpty = this._parcels.find(p => !p.tracking);
 
     return `
       <div class="toolbar">
-        <h1>📦 Parcel Tracker</h1>
+        <h1>${LOGO}Parcel Tracker</h1>
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:0.75rem;color:var(--secondary-text-color)">
             ${t.last_checked}: ${this._lastChecked ? this._formatTime(this._lastChecked) : t.never_checked}
