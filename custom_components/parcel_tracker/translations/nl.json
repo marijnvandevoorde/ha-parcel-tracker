@@ -3,15 +3,15 @@
     "step": {
       "user": {
         "title": "Parcel Tracker",
-        "description": "Voer hieronder je API-sleutels in voor betrouwbare tracking. Beide zijn gratis en optioneel — je kunt ze ook later toevoegen via de integratie-instellingen.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag. Registreer op [{dhl_url}]({dhl_url}), maak een app aan en kopieer de **Consumer Key**.\n\n**pkge.net API-sleutel** (DPD + 4PX / China Post) — Gratis, 50 pakketten/maand. Registreer op [{pkge_url}]({pkge_url}), ga naar **Company profile → API key**.",
+        "description": "Voer hieronder je API-sleutels in voor betrouwbare tracking. Beide zijn gratis en optioneel — je kunt ze ook later toevoegen via de integratie-instellingen.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag. Registreer op [{dhl_url}]({dhl_url}), maak een app aan en kopieer de **Consumer Key**.\n\n**17track API-sleutel** (DPD, GLS, Mondial Relay, 4PX + al de rest) — Gratis, 100 trackings/maand. Registreer op [{seventeentrack_url}]({seventeentrack_url}), ga naar **Settings → Security → Access Key**.",
         "data": {
           "dhl_api_key": "DHL API-sleutel",
-          "pkge_api_key": "pkge.net API-sleutel",
+          "seventeentrack_api_key": "17track API-sleutel",
           "postal_code": "Postcode bestemming"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
-          "pkge_api_key": "Company profile → API key",
+          "seventeentrack_api_key": "api.17track.net → Settings → Security → Access Key",
           "postal_code": "Nodig voor bpost en Colis Privé om trackinggegevens op te halen (bv. 9090)"
         }
       }
@@ -24,15 +24,15 @@
     "step": {
       "init": {
         "title": "Parcel Tracker — API-sleutels",
-        "description": "Pas hier je API-sleutels aan. Wijzigingen worden direct toegepast.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag. [{dhl_url}]({dhl_url}) → My Apps → Consumer Key\n\n**pkge.net API-sleutel** (DPD + 4PX / China Post) — Gratis, 50 pakketten/maand. [{pkge_url}]({pkge_url}) → Company profile → API key",
+        "description": "Pas hier je API-sleutels aan. Wijzigingen worden direct toegepast.\n\n**DHL API-sleutel** (DHL Express + DHL Germany) — Gratis, 250 calls/dag. [{dhl_url}]({dhl_url}) → My Apps → Consumer Key\n\n**17track API-sleutel** (DPD, GLS, Mondial Relay, 4PX + al de rest) — Gratis, 100 trackings/maand. [{seventeentrack_url}]({seventeentrack_url}) → Settings → Security → Access Key",
         "data": {
           "dhl_api_key": "DHL API-sleutel",
-          "pkge_api_key": "pkge.net API-sleutel",
+          "seventeentrack_api_key": "17track API-sleutel",
           "postal_code": "Postcode bestemming"
         },
         "data_description": {
           "dhl_api_key": "My Apps → Consumer Key",
-          "pkge_api_key": "Company profile → API key",
+          "seventeentrack_api_key": "api.17track.net → Settings → Security → Access Key",
           "postal_code": "Nodig voor bpost en Colis Privé om trackinggegevens op te halen (bv. 9090)"
         }
       }

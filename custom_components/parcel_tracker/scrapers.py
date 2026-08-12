@@ -27,7 +27,7 @@ class TrackerConfig:
     """API keys and settings passed through to scrapers."""
 
     dhl_api_key: str = ""
-    pkge_api_key: str = ""
+    seventeentrack_api_key: str = ""
     # bpost's API returns NO_DATA_FOUND for most parcels unless the
     # destination postal code is supplied alongside the tracking number.
     postal_code: str = ""
@@ -126,48 +126,77 @@ def _get(url: str) -> BeautifulSoup | None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# pkge.net — universal fallback for DPD and 4PX
+# 17track — universal fallback (DPD, GLS, Mondial Relay, 4PX, unknown carriers)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# pkge.net integer status codes → our status strings
-_PKGE_STATUS_MAP: dict[int, str] = {
-    -1: "pending",   # Receiving status (not started yet)
-    0: "pending",    # Added, not yet updated
-    1: "pending",    # First update in progress
-    2: "unknown",    # Updated but no info received
-    3: "in_transit", # In transit
-    4: "out_for_delivery",  # At delivery point
-    5: "delivered",  # Delivered to recipient
-    6: "exception",  # Failed delivery attempt
-    7: "exception",  # Delivery error (package destroyed etc.)
-    8: "pending",    # Info received, not yet sent
-    9: "in_transit", # End of tracked route
+# 17track official API (api.17track.net, v2.2). Register-then-poll model,
+# authenticated with a "17token" header. Free tier: 100 trackings/month.
+
+# 17track latest_status.status strings → our status strings
+_17TRACK_STATUS_MAP: dict[str, str] = {
+    "NotFound": "pending",          # Registered, carrier has no data yet
+    "InfoReceived": "pending",      # Label created / announced
+    "InTransit": "in_transit",
+    "AvailableForPickup": "out_for_delivery",
+    "OutForDelivery": "out_for_delivery",
+    "Delivered": "delivered",
+    "DeliveryFailure": "exception",
+    "Exception": "exception",
+    "Expired": "unknown",           # No updates for 30+ days
 }
 
-# pkge.net courier ids to register packages with, per carrier key.
-# courierId -1 (auto-detect) regularly fails to attach ANY courier, leaving
-# the package stuck on "Pending" forever. Full list: GET /v1/couriers.
-# 1897 = DPD Belgium — adjust for other countries (124 = DPD Germany, ...).
-# Also useful as fallbacks: 56 = Bpost, 398 = Colis Prive.
-_PKGE_COURIER_IDS: dict[str, int] = {
-    "dpd": 1897,
-    "gls": 111,          # GLS (EU-wide, gls-group.eu)
-    "mondialrelay": 228,  # Mondial Relay
+# 17track carrier keys to register packages with, per carrier key.
+# Explicit registration avoids misdetection (same lesson as pkge.net's
+# broken auto-detect). Full list:
+# https://res.17track.net/asset/carrier/info/apicarrier.all.json
+_17TRACK_CARRIER_IDS: dict[str, int] = {
+    "dpd": 100321,          # DPD (BE) — 100007 = DPD (DE)
+    "gls": 100005,          # GLS (EU-wide, gls-group.eu)
+    "mondialrelay": 100304,  # Mondial Relay
+    "fourpx": 190094,        # 4PX
 }
 
+_17TRACK_API = "https://api.17track.net/track/v2.2"
 
-def _scrape_pkgenet(
+# gettrackinfo/register "rejected" error codes we treat as non-fatal
+_17TRACK_ALREADY_REGISTERED = -18019902
+
+
+def _17track_post(endpoint: str, payload: list, api_key: str) -> dict | None:
+    """POST to the 17track API. Returns parsed JSON or None on failure."""
+    resp = requests.post(
+        f"{_17TRACK_API}/{endpoint}",
+        json=payload,
+        headers={
+            "17token": api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        timeout=TIMEOUT,
+    )
+    if resp.status_code != 200:
+        _LOGGER.warning("17track %s HTTP %s: %.200s", endpoint, resp.status_code, resp.text)
+        return None
+    try:
+        return resp.json()
+    except ValueError:
+        _LOGGER.warning("17track %s: invalid JSON response", endpoint)
+        return None
+
+
+def _scrape_17track(
     tracking_number: str,
     carrier: str,
-    pkge_api_key: str,
+    api_key: str,
     tracking_url: str,
 ) -> dict:
-    """Fetch tracking via pkge.net API.
+    """Fetch tracking via the official 17track API (api.17track.net).
 
-    pkge.net uses a register-then-poll model:
-    1. GET existing package → if not found, POST to register, then GET again.
-    2. Map integer status code to our status strings.
-    Supports DPD, 4PX, China Post and 400+ other carriers.
+    17track uses a register-then-poll model:
+    1. gettrackinfo for the number → if rejected as unregistered, register
+       (with an explicit carrier key when we know one) and query again.
+    2. Map latest_status.status to our status strings, use latest_event
+       for the human-readable detail.
     """
     result = {
         "status": "unknown",
@@ -177,100 +206,84 @@ def _scrape_pkgenet(
         "tracking_url": tracking_url,
     }
 
-    pkge_headers = {
-        "X-Api-Key": pkge_api_key,
-        "Accept": "application/json",
-    }
-    get_url = "https://api.pkge.net/v1/packages"
-    params = {"trackNumber": tracking_number}
+    item: dict = {"number": tracking_number}
+    carrier_id = _17TRACK_CARRIER_IDS.get(carrier)
+    if carrier_id:
+        item["carrier"] = carrier_id
 
     try:
-        # Step 1: try fetching an already-registered package
-        resp = requests.get(get_url, params=params, headers=pkge_headers, timeout=TIMEOUT)
+        data = _17track_post("gettrackinfo", [item], api_key)
+        if data is None:
+            result["status_detail"] = "17track: geen geldig antwoord (controleer API-sleutel)"
+            return result
 
-        if resp.status_code == 404 or resp.status_code == 200 and _pkge_not_found(resp):
-            # Not registered yet — add it (POST)
-            add_resp = requests.post(
-                get_url,
-                params={
-                    "trackNumber": tracking_number,
-                    "courierId": _PKGE_COURIER_IDS.get(carrier, -1),
-                },
-                headers=pkge_headers,
-                timeout=TIMEOUT,
-            )
-            if add_resp.status_code == 200:
-                add_data = add_resp.json() if add_resp.text else {}
-                # Code 905 = monthly add-limit reached
-                if add_data.get("code") == 905:
-                    result["status_detail"] = (
-                        "pkge.net: maandlimiet van 50 pakketten bereikt. "
-                        "Upgrade via business.pkge.net of verwijder ongebruikte pakketten."
-                    )
+        accepted = (data.get("data") or {}).get("accepted") or []
+        rejected = (data.get("data") or {}).get("rejected") or []
+
+        if not accepted and rejected:
+            err = (rejected[0].get("error") or {})
+            err_code = err.get("code")
+            if err_code == _17TRACK_ALREADY_REGISTERED:
+                pass  # race: registered between calls — just re-query below
+            else:
+                # Most likely "not registered" — register and re-query.
+                reg = _17track_post("register", [item], api_key)
+                if reg is None:
+                    result["status_detail"] = "17track: registreren mislukt"
                     return result
-            elif add_resp.status_code == 401:
-                result["status_detail"] = "pkge.net: ongeldige API-sleutel"
-                return result
-            # Short wait then fetch the now-registered package
+                reg_rejected = (reg.get("data") or {}).get("rejected") or []
+                if reg_rejected:
+                    reg_err = reg_rejected[0].get("error") or {}
+                    if reg_err.get("code") != _17TRACK_ALREADY_REGISTERED:
+                        result["status_detail"] = (
+                            f"17track: {reg_err.get('message') or 'registratie geweigerd'}"
+                        )
+                        return result
             time.sleep(1)
-            resp = requests.get(get_url, params=params, headers=pkge_headers, timeout=TIMEOUT)
+            data = _17track_post("gettrackinfo", [item], api_key)
+            if data is None:
+                result["status_detail"] = "17track: geen geldig antwoord"
+                return result
+            accepted = (data.get("data") or {}).get("accepted") or []
 
-        # Handle auth errors
-        if resp.status_code == 401:
-            result["status_detail"] = "pkge.net: ongeldige API-sleutel"
-            return result
-        if resp.status_code != 200:
-            result["status_detail"] = f"pkge.net HTTP {resp.status_code}"
-            return result
-
-        try:
-            data = resp.json()
-        except ValueError:
-            result["status_detail"] = "pkge.net: geen geldig JSON antwoord"
+        if not accepted:
+            result["status"] = "pending"
+            result["status_detail"] = "Aangemeld bij 17track, wacht op eerste scan"
             return result
 
-        payload = data.get("payload")
-        if not payload or not isinstance(payload, dict):
-            result["status_detail"] = "pkge.net: geen data ontvangen"
-            return result
+        track_info = accepted[0].get("track_info") or {}
+        latest_status = track_info.get("latest_status") or {}
+        status_str = latest_status.get("status") or ""
+        result["status"] = _17TRACK_STATUS_MAP.get(status_str, "unknown")
 
-        status_int = payload.get("status", -1)
-        result["status"] = _PKGE_STATUS_MAP.get(status_int, "unknown")
-
-        # Best status detail: latest checkpoint title + location, or last_status
-        checkpoints = payload.get("checkpoints") or []
-        last_status = payload.get("last_status", "")
-
-        if checkpoints and checkpoints[0].get("title"):
-            cp = checkpoints[0]
-            detail = cp["title"]
-            location = cp.get("location", "")
-            if location:
-                detail = f"{detail} — {location}"
-            result["status_detail"] = detail
-        elif last_status and last_status not in ("Receiving status...", ""):
-            result["status_detail"] = last_status
-        else:
-            result["status_detail"] = "Aangemeld, wacht op eerste scan"
-            if status_int == -1:
-                result["status"] = "pending"
+        latest_event = track_info.get("latest_event") or {}
+        description = latest_event.get("description") or ""
+        location = latest_event.get("location") or ""
+        # 17track uses the literal string "UNDEFINED" for missing locations
+        if location.strip().upper() == "UNDEFINED":
+            location = ""
+        when = latest_event.get("time_iso") or latest_event.get("time_utc") or ""
+        if when:
+            when = when[:16].replace("T", " ")
+        detail = description
+        if location:
+            detail = f"{detail} — {location}" if detail else location
+        if when:
+            detail = f"{detail} — {when}" if detail else when
+        if not detail:
+            if status_str in ("NotFound", "InfoReceived", ""):
+                detail = "Aangemeld, wacht op eerste scan"
+            else:
+                detail = status_str
+        result["status_detail"] = detail
+        if not status_str:
+            result["status"] = "pending"
 
     except Exception as exc:
-        _LOGGER.error("pkge.net error for %s/%s: %s", carrier, tracking_number, exc)
+        _LOGGER.error("17track error for %s/%s: %s", carrier, tracking_number, exc)
         result["status_detail"] = str(exc)
 
     return result
-
-
-def _pkge_not_found(resp: requests.Response) -> bool:
-    """Return True if pkge.net response indicates package is not registered."""
-    try:
-        data = resp.json()
-        code = data.get("code", 200)
-        # 404-equivalent codes or empty payload
-        return code not in (200,) or not data.get("payload")
-    except (ValueError, AttributeError):
-        return True
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -291,7 +304,11 @@ def _normalize_bpost(raw: str) -> str:
         return "out_for_delivery"
     if any(w in raw for w in [
         "in transit", "onderweg", "gesorteerd", "verwerkt", "aangeboden",
+        # "Zending wordt voorbereid door de postbode" — morning of delivery,
+        # postman has the parcel but the round hasn't started yet
+        "voorbereid door de postbode",
         "en transit", "en cours", "acheminé", "achemine",
+        "préparé par le facteur", "prepare par le facteur",
         "unterwegs", "sortiert", "weitergeleitet",
     ]):
         return "in_transit"
@@ -952,7 +969,7 @@ def scrape_tnt(tracking_number: str, config: TrackerConfig | None = None) -> dic
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DPD — pkge.net if key available, otherwise session-based scrape
+# DPD — 17track if key available, otherwise session-based scrape
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_dpd(raw: str) -> str:
@@ -989,16 +1006,18 @@ def _normalize_dpd(raw: str) -> str:
 
 
 def scrape_gls(tracking_number: str, config: TrackerConfig | None = None) -> dict:
-    """Track GLS parcels via pkge.net (GLS retired their open REST API).
+    """Track GLS parcels via 17track (GLS retired their open REST API).
 
-    Requires a pkge.net API key.
+    Requires a 17track API key.
     """
     tracking_url = f"https://gls-group.eu/BE/nl/pakket-volgen?match={tracking_number}"
-    if config and config.pkge_api_key:
-        return _scrape_pkgenet(tracking_number, "gls", config.pkge_api_key, tracking_url)
+    if config and config.seventeentrack_api_key:
+        return _scrape_17track(
+            tracking_number, "gls", config.seventeentrack_api_key, tracking_url
+        )
     return {
         "status": "unknown",
-        "status_detail": "GLS vereist een pkge.net API-sleutel (business.pkge.net).",
+        "status_detail": "GLS vereist een 17track API-sleutel (api.17track.net).",
         "carrier": "gls",
         "tracking_number": tracking_number,
         "tracking_url": tracking_url,
@@ -1006,9 +1025,9 @@ def scrape_gls(tracking_number: str, config: TrackerConfig | None = None) -> dic
 
 
 def scrape_mondialrelay(tracking_number: str, config: TrackerConfig | None = None) -> dict:
-    """Track Mondial Relay parcels via pkge.net.
+    """Track Mondial Relay parcels via 17track.
 
-    Requires a pkge.net API key. The tracking page link includes the
+    Requires a 17track API key. The tracking page link includes the
     destination postal code when configured.
     """
     postal = ((config.postal_code if config else "") or "").strip()
@@ -1018,13 +1037,13 @@ def scrape_mondialrelay(tracking_number: str, config: TrackerConfig | None = Non
     )
     if postal:
         tracking_url += f"&codePostal={postal}"
-    if config and config.pkge_api_key:
-        return _scrape_pkgenet(
-            tracking_number, "mondialrelay", config.pkge_api_key, tracking_url
+    if config and config.seventeentrack_api_key:
+        return _scrape_17track(
+            tracking_number, "mondialrelay", config.seventeentrack_api_key, tracking_url
         )
     return {
         "status": "unknown",
-        "status_detail": "Mondial Relay vereist een pkge.net API-sleutel (business.pkge.net).",
+        "status_detail": "Mondial Relay vereist een 17track API-sleutel (api.17track.net).",
         "carrier": "mondialrelay",
         "tracking_number": tracking_number,
         "tracking_url": tracking_url,
@@ -1034,7 +1053,7 @@ def scrape_mondialrelay(tracking_number: str, config: TrackerConfig | None = Non
 def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape DPD tracking.
 
-    With a pkge.net API key: uses pkge.net (reliable, 50 pakketten/maand gratis).
+    With a 17track API key: uses 17track (reliable, 100 trackings/maand gratis).
     Without a key: attempts direct session-based scraping of DPD REST API
     (may fail due to bot protection).
     """
@@ -1044,8 +1063,10 @@ def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dic
         f"lang=nl&parcelNumber={tracking_number}"
     )
 
-    if config and config.pkge_api_key:
-        return _scrape_pkgenet(tracking_number, "dpd", config.pkge_api_key, tracking_url)
+    if config and config.seventeentrack_api_key:
+        return _scrape_17track(
+            tracking_number, "dpd", config.seventeentrack_api_key, tracking_url
+        )
 
     # ── Fallback: session-based direct scrape ────────────────────────────────
     result = {
@@ -1078,7 +1099,7 @@ def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dic
             except ValueError:
                 result["status_detail"] = (
                     "DPD API: geen JSON ontvangen (bot-beveiliging). "
-                    "Stel een pkge.net API-sleutel in voor betrouwbare DPD-tracking."
+                    "Stel een 17track API-sleutel in voor betrouwbare DPD-tracking."
                 )
                 return result
             parcel_lifecycle = data.get("parcellifecycleResponse", {})
@@ -1102,7 +1123,7 @@ def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dic
         else:
             result["status_detail"] = (
                 f"DPD HTTP {resp.status_code}. "
-                "Stel een pkge.net API-sleutel in voor betrouwbare DPD-tracking."
+                "Stel een 17track API-sleutel in voor betrouwbare DPD-tracking."
             )
     except Exception as exc:
         _LOGGER.error("DPD scrape error: %s", exc)
@@ -1112,7 +1133,7 @@ def scrape_dpd(tracking_number: str, config: TrackerConfig | None = None) -> dic
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4PX / China Post — pkge.net if key available, otherwise direct API
+# 4PX / China Post — 17track if key available, otherwise direct API
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _normalize_fourpx(raw: str) -> str:
@@ -1197,13 +1218,15 @@ def _parse_fourpx_response(data: dict) -> tuple[str, str]:
 def scrape_fourpx(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape 4PX / China Post tracking.
 
-    With a pkge.net API key: uses pkge.net (reliable, 50 pakketten/maand gratis).
+    With a 17track API key: uses 17track (reliable, 100 trackings/maand gratis).
     Without a key: attempts direct 4PX API (may be blocked by bot protection).
     """
     tracking_url = f"https://track.4px.com/#/result/0/{tracking_number}"
 
-    if config and config.pkge_api_key:
-        return _scrape_pkgenet(tracking_number, "fourpx", config.pkge_api_key, tracking_url)
+    if config and config.seventeentrack_api_key:
+        return _scrape_17track(
+            tracking_number, "fourpx", config.seventeentrack_api_key, tracking_url
+        )
 
     # ── Fallback: direct 4PX API ─────────────────────────────────────────────
     result = {
@@ -1231,7 +1254,7 @@ def scrape_fourpx(tracking_number: str, config: TrackerConfig | None = None) -> 
             except ValueError:
                 result["status_detail"] = (
                     "4PX API: geen JSON ontvangen (bot-beveiliging). "
-                    "Stel een pkge.net API-sleutel in voor betrouwbare 4PX-tracking."
+                    "Stel een 17track API-sleutel in voor betrouwbare 4PX-tracking."
                 )
                 return result
             status, detail = _parse_fourpx_response(data)
@@ -1244,7 +1267,7 @@ def scrape_fourpx(tracking_number: str, config: TrackerConfig | None = None) -> 
         else:
             result["status_detail"] = (
                 f"4PX HTTP {resp.status_code}. "
-                "Stel een pkge.net API-sleutel in voor betrouwbare 4PX-tracking."
+                "Stel een 17track API-sleutel in voor betrouwbare 4PX-tracking."
             )
     except Exception as exc:
         _LOGGER.error("4PX scrape error: %s", exc)
@@ -1292,6 +1315,16 @@ def get_tracking_info(
     scraper = SCRAPER_MAP.get(carrier)
     if scraper:
         return scraper(tracking_number, config)
+
+    # Everything without a dedicated scraper falls back to 17track
+    # (auto-detect: no carrier key passed, 17track picks the carrier).
+    if config and config.seventeentrack_api_key:
+        return _scrape_17track(
+            tracking_number,
+            carrier,
+            config.seventeentrack_api_key,
+            f"https://t.17track.net/nl#nums={tracking_number}",
+        )
 
     return {
         "status": "unknown",

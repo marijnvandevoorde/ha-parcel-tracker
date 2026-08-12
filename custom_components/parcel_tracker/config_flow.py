@@ -3,18 +3,18 @@ from __future__ import annotations
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from .const import DOMAIN, CONF_POSTAL_CODE, CONF_DHL_API_KEY, CONF_PKGE_API_KEY
+from .const import DOMAIN, CONF_POSTAL_CODE, CONF_DHL_API_KEY, CONF_17TRACK_API_KEY
 
 DESCRIPTION_PLACEHOLDERS = {
     "dhl_url": "developer.dhl.com",
-    "pkge_url": "business.pkge.net",
+    "seventeentrack_url": "api.17track.net",
 }
 
 
 def _clean(user_input: dict) -> dict:
     return {
         CONF_DHL_API_KEY: (user_input.get(CONF_DHL_API_KEY) or "").strip(),
-        CONF_PKGE_API_KEY: (user_input.get(CONF_PKGE_API_KEY) or "").strip(),
+        CONF_17TRACK_API_KEY: (user_input.get(CONF_17TRACK_API_KEY) or "").strip(),
         CONF_POSTAL_CODE: (user_input.get(CONF_POSTAL_CODE) or "").strip(),
     }
 
@@ -37,7 +37,7 @@ class ParcelTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_DHL_API_KEY): str,
-                    vol.Optional(CONF_PKGE_API_KEY): str,
+                    vol.Optional(CONF_17TRACK_API_KEY): str,
                     vol.Optional(CONF_POSTAL_CODE): str,
                 }
             ),
@@ -71,10 +71,10 @@ class ParcelTrackerOptionsFlow(config_entries.OptionsFlow):
                         },
                     ): str,
                     vol.Optional(
-                        CONF_PKGE_API_KEY,
+                        CONF_17TRACK_API_KEY,
                         description={
-                            "suggested_value": current.get(CONF_PKGE_API_KEY)
-                            or data.get(CONF_PKGE_API_KEY, "")
+                            "suggested_value": current.get(CONF_17TRACK_API_KEY)
+                            or data.get(CONF_17TRACK_API_KEY, "")
                         },
                     ): str,
                     vol.Optional(

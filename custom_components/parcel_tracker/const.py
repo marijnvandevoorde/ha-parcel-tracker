@@ -1,14 +1,14 @@
 """Constants for Parcel Tracker integration."""
 
 DOMAIN = "parcel_tracker"
-VERSION = "1.12.0"
+VERSION = "1.13.0"
 PLATFORM = "sensor"
 
 CONF_TRACKING_NUMBER = "tracking_number"
 CONF_CARRIER = "carrier"
 CONF_FRIENDLY_NAME = "friendly_name"
 CONF_DHL_API_KEY = "dhl_api_key"
-CONF_PKGE_API_KEY = "pkge_api_key"
+CONF_17TRACK_API_KEY = "seventeentrack_api_key"
 CONF_POSTAL_CODE = "postal_code"
 
 DEFAULT_SCAN_INTERVAL = 30  # minutes
@@ -25,8 +25,8 @@ CARRIERS = {
     "ups": "UPS",
     "postnl": "PostNL",
     "colisprive": "Colis Privé (experimenteel)",
-    "gls": "GLS (via pkge.net)",
-    "mondialrelay": "Mondial Relay (via pkge.net)",
+    "gls": "GLS (via 17track)",
+    "mondialrelay": "Mondial Relay (via 17track)",
 }
 
 TRACKING_URLS = {

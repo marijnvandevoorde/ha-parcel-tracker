@@ -108,7 +108,13 @@ Repository: https://github.com/wwoutt/ha-parcel-tracker
 - DPD: session-gebaseerde aanpak (eerst cookies ophalen, dan AJAX-call) — foute HTML-fallback verwijderd
 - 4PX: hulpfunctie `_parse_fourpx_response` die meerdere response-structuren probeert, betere foutmeldingen
 
-### v1.11.0 (huidig)
+### v1.13.0 (huidig)
+- **pkge.net volledig vervangen door 17track** (pkge bleek onbruikbaar voor DPD): `_scrape_pkgenet` → `_scrape_17track` op de officiële 17track API (`api.17track.net/track/v2.2`, header `17token`, gratis 100 trackings/maand, sleutel via api.17track.net → Settings → Security → Access Key). Register-then-poll, expliciete carrier keys (DPD BE 100321, GLS 100005, Mondial Relay 100304, 4PX 190094 — volledige lijst: res.17track.net/asset/carrier/info/apicarrier.all.json).
+- Routing: bpost / Colis Privé / DHL / PostNL / UPS / TNT blijven direct; DPD, GLS, Mondial Relay, 4PX én elke onbekende carrier gaan via 17track (auto-detect zonder carrier key voor onbekende carriers).
+- Config: `pkge_api_key` → `seventeentrack_api_key` (const/config_flow/coordinator/strings/vertalingen). Oude pkge-sleutel in bestaande config entries wordt genegeerd.
+- Live-test fixes (2026-08-11): 17track-locatie "UNDEFINED" wordt weggefilterd uit status_detail; bpost-frase "Zending wordt voorbereid door de postbode" (+ FR-variant) toegevoegd aan `_normalize_bpost` → in_transit.
+
+### v1.11.0
 - **DHL Developer API** geïntegreerd: `scrape_dhl` en `scrape_dhl_de` gebruiken nu de officiële DHL Unified Tracking API (`api-eu.dhl.com`) wanneer een API-sleutel is ingesteld (gratis, 250/dag, registreer op developer.dhl.com). Zonder sleutel: fallback naar demo-key (DHL Express) of DHL.de website-API (DHL Germany).
 - **pkge.net API** geïntegreerd: `scrape_dpd` en `scrape_fourpx` gebruiken pkge.net wanneer een API-sleutel is ingesteld (gratis, 50 pakketten/maand, registreer op business.pkge.net). Zonder sleutel: bestaande fallback-scrapers.
 - `TrackerConfig` dataclass toegevoegd in `scrapers.py` voor het doorgeven van API-sleutels aan scrapers

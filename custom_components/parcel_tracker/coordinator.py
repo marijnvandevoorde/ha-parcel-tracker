@@ -11,7 +11,7 @@ from .const import (
     MAX_PARCELS,
     CONF_POSTAL_CODE,
     CONF_DHL_API_KEY,
-    CONF_PKGE_API_KEY,
+    CONF_17TRACK_API_KEY,
 )
 from .scrapers import get_tracking_info, TrackerConfig
 
@@ -39,7 +39,8 @@ class ParcelTrackerCoordinator(DataUpdateCoordinator):
         data = self.entry.data or {}
         return TrackerConfig(
             dhl_api_key=options.get(CONF_DHL_API_KEY) or data.get(CONF_DHL_API_KEY, ""),
-            pkge_api_key=options.get(CONF_PKGE_API_KEY) or data.get(CONF_PKGE_API_KEY, ""),
+            seventeentrack_api_key=options.get(CONF_17TRACK_API_KEY)
+            or data.get(CONF_17TRACK_API_KEY, ""),
             postal_code=options.get(CONF_POSTAL_CODE)
             or data.get(CONF_POSTAL_CODE, ""),
         )

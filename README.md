@@ -29,12 +29,12 @@ Up to **10 parcels** can be tracked simultaneously. Status is refreshed automati
 | PostNL | Yes | Official API |
 | DHL (International) | Yes | API + HTML fallback |
 | DHL Germany | No | API + HTML fallback |
-| DPD | Yes | REST API |
+| DPD | Yes | 17track API (key required; direct scrape fallback) |
 | UPS | Yes | API |
 | TNT / FedEx | Yes | FedEx JSON API |
 | Colis Privé | No | HTML scrape (experimental) |
-| GLS | No | pkge.net API (key required) |
-| Mondial Relay | No | pkge.net API (key required) |
+| GLS | No | 17track API (key required) |
+| Mondial Relay | No | 17track API (key required) |
 
 ---
 
