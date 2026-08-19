@@ -350,6 +350,48 @@ def _normalize_bpost(raw: str) -> str:
     return "unknown"
 
 
+# bPost event descriptions come back as mustache templates ("Zending onderweg
+# voor levering in {{bboxRebrand}}."); their own app fills the values in from
+# fields elsewhere on the same item. Resolve the same placeholders here.
+_BPOST_BBOX_REBRAND = {
+    # bpost's rebrand of the parcel lockers — the app renders this exact word
+    "bbox": "bbox-automaat",
+}
+_BPOST_PRODUCT_CATEGORY = {
+    "parcel": "pakje",
+    "letter": "brief",
+    "mail": "zending",
+}
+
+
+def _fill_bpost_placeholders(text: str, item: dict) -> str:
+    """Substitute {{...}} placeholders in a bPost description from the item."""
+    if not text or "{{" not in text:
+        return text
+    point = item.get("deliveryPoint") or {}
+    names = point.get("name") or {}
+    point_name = (names.get("nl") or names.get("en") or "").strip()
+    category = (item.get("bboxRebrandCategory") or "").strip()
+    available = item.get("earliestAvailableTime") or {}
+    product_category = item.get("productCategory", "")
+    values = {
+        # Name the actual pickup point rather than the generic "bbox-automaat"
+        # the bpost app shows; fall back to that label when we have no name.
+        "bboxRebrand": point_name or _BPOST_BBOX_REBRAND.get(category, category),
+        "location": point_name,
+        "productCategoryName": _BPOST_PRODUCT_CATEGORY.get(
+            product_category, product_category
+        ),
+        "earliestAvailableDate": available.get("day", ""),
+        "earliestAvailableTime": available.get("time", ""),
+    }
+    filled = re.sub(r"\{\{(\w+)\}\}", lambda m: values.get(m.group(1), ""), text)
+    # Tidy up what an unresolved placeholder leaves behind
+    filled = re.sub(r"\s{2,}", " ", filled)
+    filled = re.sub(r"\s+([.,])", r"\1", filled)
+    return filled.strip()
+
+
 def scrape_bpost(tracking_number: str, config: TrackerConfig | None = None) -> dict:
     """Scrape bPost tracking via their API endpoint."""
     # The web tracker needs the postal code just like the API does — without
@@ -407,13 +449,15 @@ def scrape_bpost(tracking_number: str, config: TrackerConfig | None = None) -> d
                     or (key.get("EN") or {}).get("description")
                     or latest.get("label", "")
                 )
+                raw_status = _fill_bpost_placeholders(raw_status, item)
                 location = (latest.get("location") or {}).get("locationName", "").strip()
                 when = " ".join(
                     p for p in [latest.get("date", ""), latest.get("time", "")] if p
                 )
                 detail = raw_status
                 if location:
-                    detail += f" ({location})"
+                    # Drop the sentence period so it does not collide with "(...)"
+                    detail = detail.rstrip(". ") + f" ({location})"
                 if when:
                     detail += f" — {when}"
                 result["status_detail"] = detail
