@@ -1,0 +1,23 @@
+# Dependabot configuration.
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Minor + patch updates are grouped per ecosystem into a single PR and are
+# merged automatically by .github/workflows/dependabot-auto-merge.yml once the
+# PR's checks pass. Major updates get their own PR for manual review.
+version: 2
+updates:
+
+  # Actions used by workflows in .github/workflows/ (the integration has no
+  # Dependabot-readable manifest: its pip requirements live in manifest.json).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      github-actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
