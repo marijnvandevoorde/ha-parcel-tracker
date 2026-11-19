@@ -2,11 +2,23 @@ name: Validate
 
 on:
   pull_request:
+    # Skip docs-only PRs, but keep the root README.md: HACS renders it
+    # (render_readme) and validates it.
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!docs/**'
+      - 'README.md'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Validate HACS
